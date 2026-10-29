@@ -100,7 +100,7 @@ Target headline: *"picking the best reconstructor picks a bad detector; syntheti
 ### PCA (baseline)
 - k ∈ {1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120}
 - Score: reconstruction MSE.
-- Previous result on E1 (old 60/10/30 split): AUROC ≈ 0.98–0.99 at k ≤ 20, falling to ≈ 0.28 at k = 120. **Needs rerunning on the 70/15/15 split.** Then run E2–E4.
+- Result on E1 (70/15/15 split): AUROC ≈ 0.97–0.99 at k ≤ 20, falling to 0.55 at k = 80 and 0.21 at k = 120. Next: run E2–E4.
 - Resolution sweep (done, appendix): with k fixed, AUROC is flat from L = 20 to 560. It falls only when k grows with L, so resolution acts as a stand-in for capacity.
 
 ### VAE (1D)
@@ -171,13 +171,15 @@ blog/draft.md
 ```
 
 ## Status
-- [x] ECG5000 download + splits (60/10/30; **change to 70/15/15**)
+- [x] ECG5000 download + 70/15/15 split: 2043 train / 437 val / 439 normal + 2081 anomalous test
 - [x] Shared evaluation + paradox-curve plot
-- [x] PCA capacity sweep on ECG5000 (old split)
+- [x] PCA capacity sweep on ECG5000: AUROC 0.99 (k=2) → 0.21 (k=120)
 - [x] PCA resolution sweep on ECG5000
+- [x] `.venv` rebuilt on python.org 3.13 arm64 (torch 2.15, MPS available); versions pinned in `requirements.txt`
+- [x] MNIST code removed (archived at git tag `mnist-pca-archive`)
 - [x] `src/vae.py` written (MLP VAE, fixed σ_x; **update to learned σ_x**), not run yet
-- [ ] **Rebuild `.venv` with python.org 3.13 (arm64)**; the current venv is Intel 3.11 and torch is broken
-- [ ] Remove MNIST code (`src/mnist_data.py`, `--dataset mnist`) or keep it out of the paper
+- [ ] `src/complexity.py`, `src/anomalies.py`; PCA on E2–E4
+- [ ] VAE training script + sweeps
 - [ ] Everything else below
 
 ## Timeline
