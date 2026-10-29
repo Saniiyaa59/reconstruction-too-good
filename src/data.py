@@ -58,6 +58,13 @@ def make_splits(X, y, seed=SEED):
     }
 
 
+def resample(X, length):
+    """Linearly interpolate each signal (row) to `length` points over the same time span."""
+    old_t = np.linspace(0, 1, X.shape[1])
+    new_t = np.linspace(0, 1, length)
+    return np.stack([np.interp(new_t, old_t, row) for row in X]).astype(np.float32)
+
+
 def load_splits():
     """Load processed splits, building them first if needed."""
     path = PROCESSED_DIR / "splits.npz"
