@@ -48,14 +48,16 @@ autoencoder?
 
 ### Sanity check results (PCA)
 
+Normal beats split 70/15/15 (train/val/test); all anomalies in test.
+
 | Components (k) | Normal error | Anomaly error | AUROC |
 |---:|---:|---:|---:|
-| 1   | 0.142  | 0.912  | 0.979 |
-| 5   | 0.045  | 0.407  | 0.986 |
-| 20  | 0.0075 | 0.047  | 0.978 |
-| 50  | 0.0035 | 0.0062 | 0.873 |
-| 80  | 0.0017 | 0.0015 | 0.519 |
-| 120 | 0.0003 | 0.0002 | 0.324 |
+| 1   | 0.138  | 0.901  | 0.986 |
+| 5   | 0.046  | 0.428  | 0.984 |
+| 20  | 0.0077 | 0.045  | 0.974 |
+| 50  | 0.0037 | 0.0057 | 0.828 |
+| 80  | 0.0017 | 0.0016 | 0.554 |
+| 120 | 0.0003 | 0.0002 | 0.205 |
 
 AUROC starts near-perfect at low capacity and collapses to at/below chance
 as capacity increases — the model becomes too good at reconstructing

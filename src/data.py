@@ -3,9 +3,12 @@
 The UCR train/test files are pooled (5000 beats) and re-split, since the
 original 500-row train file holds only ~290 normal beats.
 
-    train : 60% of normal beats
-    val   : 10% of normal beats
-    test  : remaining 30% of normal beats + all anomalous beats
+    train : 70% of normal beats
+    val   : 15% of normal beats
+    test  : remaining 15% of normal beats + all anomalous beats
+
+UCR distributes every beat already z-normalized (mean 0, std ~1 per beat), so
+amplitude and variance carry no information; we keep that preprocessing.
 """
 import urllib.request
 from pathlib import Path
@@ -44,8 +47,8 @@ def make_splits(X, y, seed=SEED):
     normal_idx = rng.permutation(np.flatnonzero(y == NORMAL_CLASS))
     anomaly_idx = np.flatnonzero(y != NORMAL_CLASS)
 
-    n_train = int(0.6 * len(normal_idx))
-    n_val = int(0.1 * len(normal_idx))
+    n_train = int(0.7 * len(normal_idx))
+    n_val = int(0.15 * len(normal_idx))
     train_idx = normal_idx[:n_train]
     val_idx = normal_idx[n_train:n_train + n_val]
     test_idx = np.concatenate([normal_idx[n_train + n_val:], anomaly_idx])

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 METRICS_DIR = ROOT / "results" / "metrics"
 FIGURES_DIR = ROOT / "results" / "figures"
 
-KS = [1, 2, 5, 10, 20, 30, 50, 80, 100, 120]
+KS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120]
 
 
 def reconstruct(pca, X):
