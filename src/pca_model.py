@@ -3,9 +3,8 @@
 Fits PCA on normal training data only, reconstructs test samples with k
 components, and scores each sample by reconstruction error.
 
-    python src/pca_model.py                          # ECG5000
-    python src/pca_model.py --dataset mnist --normal 8
-    python src/pca_model.py --sweep resolution       # ECG5000, resample to L points
+    python src/pca_model.py                      # capacity sweep over k
+    python src/pca_model.py --sweep resolution   # resample beats to L points
 """
 import argparse
 import csv
@@ -14,17 +13,13 @@ from pathlib import Path
 from sklearn.decomposition import PCA
 
 import data
-import mnist_data
 from evaluate import plot_paradox_curve, reconstruction_error, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 METRICS_DIR = ROOT / "results" / "metrics"
 FIGURES_DIR = ROOT / "results" / "figures"
 
-KS = {
-    "ecg": [1, 2, 5, 10, 20, 30, 50, 80, 100, 120],
-    "mnist": [1, 2, 5, 10, 20, 50, 100, 200, 300, 500, 700],
-}
+KS = [1, 2, 5, 10, 20, 30, 50, 80, 100, 120]
 
 
 def reconstruct(pca, X):
@@ -106,8 +101,6 @@ def plot_resolution_sweep(rows, path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["ecg", "mnist"], default="ecg")
-    parser.add_argument("--normal", type=int, default=0, help="normal digit (mnist only)")
     parser.add_argument("--sweep", choices=["capacity", "resolution"], default="capacity")
     args = parser.parse_args()
 
@@ -115,20 +108,9 @@ def main():
         run_resolution_sweep()
         return
 
-    if args.dataset == "ecg":
-        splits = data.load_splits()
-        normal_class = data.NORMAL_CLASS
-        name, fig_name = "pca_ecg", "paradox_sanity_check.png"
-        title = "PCA capacity sweep on ECG5000"
-    else:
-        splits = mnist_data.load_one_class(args.normal)
-        normal_class = args.normal
-        name = f"pca_mnist_normal{args.normal}"
-        fig_name = f"{name}.png"
-        title = f"PCA one-class MNIST (normal = {args.normal})"
-
+    splits = data.load_splits()
     rows = run_sweep(splits["X_train"], splits["X_test"], splits["y_test"],
-                     normal_class, KS[args.dataset])
+                     data.NORMAL_CLASS, KS)
 
     print(f"{'k':>4} {'normal err':>11} {'anomaly err':>12} {'AUROC':>7}")
     for r in rows:
@@ -136,10 +118,11 @@ def main():
 
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    write_csv(rows, METRICS_DIR / f"{name}.csv")
+    write_csv(rows, METRICS_DIR / "pca_ecg.csv")
 
     plot_paradox_curve([r["k"] for r in rows], rows, xlabel="PCA components (k)",
-                       title=title, path=FIGURES_DIR / fig_name)
+                       title="PCA capacity sweep on ECG5000",
+                       path=FIGURES_DIR / "paradox_sanity_check.png")
 
 
 if __name__ == "__main__":
