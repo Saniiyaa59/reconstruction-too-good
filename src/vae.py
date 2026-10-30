@@ -1,14 +1,16 @@
 """MLP variational autoencoder for flat inputs (e.g. 140-point ECG beats).
 
-Loss is the negative ELBO for a Gaussian decoder with fixed variance:
+The decoder is Gaussian with one learned scalar standard deviation sigma_x,
+shared by all D input dims. Training loss is the negative ELBO:
 
-    -ELBO(x) = SSE(x, x_hat) + beta * KL(q(z|x) || N(0, I))
+    -ELBO(x) = SSE(x, x_hat) / (2 sigma_x^2) + D log sigma_x + D/2 log(2 pi) + beta * KL
 
-SSE = sum of squared errors over input dims. This is -log p(x|z) for a Gaussian
-with variance 1/2, up to a constant. A different decoder variance only rescales
-SSE relative to KL, which is the same as changing beta — so the beta sweep also
-covers the choice of decoder variance.
+Learning sigma_x sets the balance between reconstruction and KL from the data,
+instead of fixing it by hand. Pass `fixed_sigma_x` to freeze it instead (the
+robustness check in PLAN.md: sigma_x^2 = validation MSE of a trained model).
 """
+import math
+
 import torch
 import torch.nn as nn
 
@@ -24,8 +26,9 @@ def mlp(sizes):
 
 
 class MLPVAE(nn.Module):
-    def __init__(self, input_dim, latent_dim, hidden=(128, 64), beta=1.0):
+    def __init__(self, input_dim, latent_dim, hidden=(128, 64), beta=1.0, fixed_sigma_x=None):
         super().__init__()
+        self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.beta = beta
         self.encoder = mlp([input_dim, *hidden])
@@ -34,6 +37,10 @@ class MLPVAE(nn.Module):
         self.to_logvar = nn.Linear(hidden[-1], latent_dim)
         # No output activation: inputs are z-normalized, so values are unbounded
         self.decoder = mlp([latent_dim, *reversed(hidden), input_dim])
+        if fixed_sigma_x is None:
+            self.log_sigma_x = nn.Parameter(torch.zeros(()))  # starts at sigma_x = 1
+        else:
+            self.register_buffer("log_sigma_x", torch.tensor(math.log(fixed_sigma_x)))
 
     def encode(self, x):
         h = self.encoder_act(self.encoder(x))
@@ -57,29 +64,43 @@ class MLPVAE(nn.Module):
         """Closed-form KL(N(mu, sigma^2) || N(0, I)), summed over latent dims."""
         return -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=1)
 
+    def nll_per_sample(self, x, x_hat):
+        """-log p(x | z) under N(x_hat, sigma_x^2 I), summed over input dims."""
+        sse = (x - x_hat).pow(2).sum(dim=1)
+        D = self.input_dim
+        return (sse / (2 * torch.exp(2 * self.log_sigma_x))
+                + D * self.log_sigma_x + 0.5 * D * math.log(2 * math.pi))
+
     def loss(self, x):
-        """Batch-mean negative ELBO, plus its two parts for logging."""
+        """Batch-mean negative ELBO (with this model's beta), plus parts for logging."""
         x_hat, mu, logvar = self(x)
-        sse = (x - x_hat).pow(2).sum(dim=1).mean()
+        nll = self.nll_per_sample(x, x_hat).mean()
         kl = self.kl_per_sample(mu, logvar).mean()
-        return sse + self.beta * kl, {"sse": sse.item(), "kl": kl.item()}
+        return nll + self.beta * kl, {
+            "nll": nll.item(),
+            "kl": kl.item(),
+            "mse": (x - x_hat).pow(2).mean().item(),
+            "sigma_x": self.log_sigma_x.exp().item(),
+        }
 
     @torch.no_grad()
-    def score(self, x):
-        """Per-sample anomaly scores, computed deterministically from mu (no sampling).
+    def score(self, x, n_samples=10):
+        """Per-sample anomaly scores.
 
-        recon    : MSE between x and decode(mu) — same units as the PCA scores
-        kl       : KL of q(z|x) from the prior — how costly this input's latent code is
-        neg_elbo : SSE + beta * KL — the model's (bound on) negative log-likelihood
+        recon    : MSE between x and decode(mu), same units as the PCA scores
+        kl       : KL of q(z|x) from the prior, how costly this input's latent code is
+        neg_elbo : NLL averaged over `n_samples` draws of z, plus KL. Always uses
+                   beta = 1 so it is a true bound on -log p(x), whatever beta was
+                   used in training
         """
         mu, logvar = self.encode(x)
-        x_hat = self.decode(mu)
-        sq = (x - x_hat).pow(2)
         kl = self.kl_per_sample(mu, logvar)
+        nll = torch.stack([self.nll_per_sample(x, self.decode(self.reparameterize(mu, logvar)))
+                           for _ in range(n_samples)]).mean(dim=0)
         return {
-            "recon": sq.mean(dim=1),
+            "recon": (x - self.decode(mu)).pow(2).mean(dim=1),
             "kl": kl,
-            "neg_elbo": sq.sum(dim=1) + self.beta * kl,
+            "neg_elbo": nll + kl,
         }
 
     @torch.no_grad()
