@@ -1,4 +1,4 @@
-"""MLP variational autoencoder for flat inputs (e.g. 140-point ECG beats).
+"""Variational autoencoders for flat inputs (e.g. 140-point ECG beats): MLP and 1D conv.
 
 The decoder is Gaussian with one learned scalar standard deviation sigma_x,
 shared by all D input dims. Training loss is the negative ELBO:
@@ -25,29 +25,18 @@ def mlp(sizes):
     return nn.Sequential(*layers)
 
 
-class MLPVAE(nn.Module):
-    def __init__(self, input_dim, latent_dim, hidden=(128, 64), beta=1.0, fixed_sigma_x=None):
+class GaussianVAE(nn.Module):
+    """Loss and scores shared by every VAE; subclasses define encode and decode."""
+
+    def __init__(self, input_dim, latent_dim, beta=1.0, fixed_sigma_x=None):
         super().__init__()
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.beta = beta
-        self.encoder = mlp([input_dim, *hidden])
-        self.encoder_act = nn.ReLU()
-        self.to_mu = nn.Linear(hidden[-1], latent_dim)
-        self.to_logvar = nn.Linear(hidden[-1], latent_dim)
-        # No output activation: inputs are z-normalized, so values are unbounded
-        self.decoder = mlp([latent_dim, *reversed(hidden), input_dim])
         if fixed_sigma_x is None:
             self.log_sigma_x = nn.Parameter(torch.zeros(()))  # starts at sigma_x = 1
         else:
             self.register_buffer("log_sigma_x", torch.tensor(math.log(fixed_sigma_x)))
-
-    def encode(self, x):
-        h = self.encoder_act(self.encoder(x))
-        return self.to_mu(h), self.to_logvar(h)
-
-    def decode(self, z):
-        return self.decoder(z)
 
     @staticmethod
     def reparameterize(mu, logvar):
@@ -108,3 +97,59 @@ class MLPVAE(nn.Module):
         """Number of latent dims whose mean varies across inputs (Burda et al. 2016)."""
         mu, _ = self.encode(x)
         return int((mu.var(dim=0) > threshold).sum())
+
+
+class MLPVAE(GaussianVAE):
+    def __init__(self, input_dim, latent_dim, hidden=(128, 64), beta=1.0, fixed_sigma_x=None):
+        super().__init__(input_dim, latent_dim, beta, fixed_sigma_x)
+        self.encoder = mlp([input_dim, *hidden])
+        self.encoder_act = nn.ReLU()
+        self.to_mu = nn.Linear(hidden[-1], latent_dim)
+        self.to_logvar = nn.Linear(hidden[-1], latent_dim)
+        # No output activation: inputs are z-normalized, so values are unbounded
+        self.decoder = mlp([latent_dim, *reversed(hidden), input_dim])
+
+    def encode(self, x):
+        h = self.encoder_act(self.encoder(x))
+        return self.to_mu(h), self.to_logvar(h)
+
+    def decode(self, z):
+        return self.decoder(z)
+
+
+class ConvVAE(GaussianVAE):
+    """1D conv VAE: three stride-2 convolutions down, mirrored transposed convolutions up.
+
+    There are no skip connections, so every input has to pass through the latent code.
+    """
+
+    def __init__(self, input_dim, latent_dim, channels=32, beta=1.0, fixed_sigma_x=None):
+        super().__init__(input_dim, latent_dim, beta, fixed_sigma_x)
+        widths = [1, channels, 2 * channels, 4 * channels]
+        lengths = [input_dim]
+        for _ in range(3):
+            lengths.append((lengths[-1] + 1) // 2)  # stride 2, kernel 7, padding 3
+
+        down, up = [], []
+        for i in range(3):
+            down += [nn.Conv1d(widths[i], widths[i + 1], 7, stride=2, padding=3), nn.ReLU()]
+            # Output padding restores the exact length the matching downsampling step started from
+            pad = lengths[i] - (2 * lengths[i + 1] - 1)
+            up = [nn.ConvTranspose1d(widths[i + 1], widths[i], 7, stride=2, padding=3,
+                                     output_padding=pad), nn.ReLU()] + up
+        self.encoder = nn.Sequential(*down)
+        self.decoder = nn.Sequential(*up[:-1])  # no activation on the output
+
+        self.bottom_shape = (widths[-1], lengths[-1])
+        flat = widths[-1] * lengths[-1]
+        self.to_mu = nn.Linear(flat, latent_dim)
+        self.to_logvar = nn.Linear(flat, latent_dim)
+        self.from_latent = nn.Linear(latent_dim, flat)
+
+    def encode(self, x):
+        h = self.encoder(x.unsqueeze(1)).flatten(1)
+        return self.to_mu(h), self.to_logvar(h)
+
+    def decode(self, z):
+        h = torch.relu(self.from_latent(z)).view(-1, *self.bottom_shape)
+        return self.decoder(h).squeeze(1)
