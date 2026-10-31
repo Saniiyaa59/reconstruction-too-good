@@ -4,6 +4,7 @@
     python src/vae_experiments.py beta-sweep             # how low can the error go as beta falls?
     python src/vae_experiments.py beta-sweep --channels 32 --betas 1 0 --seeds 0   # the same, conv VAE
     python src/vae_experiments.py matched-error          # KL on vs. off at equal reconstruction error
+    python src/vae_experiments.py matched-error --channels 32   # the same, conv VAE
     python src/vae_experiments.py e3 RUN [RUN ...]       # synthetic anomalies, on saved runs
 
 Add --device cuda to train on a GPU. This speeds up the conv VAE; small MLPs are faster on the CPU.
@@ -34,6 +35,7 @@ FIGURES_DIR = ROOT / "results" / "figures"
 WIDE_MLP = {"latent_dim": 256, "hidden": (512, 256)}
 SMALL_MLP_HIDDEN = (128, 64)
 SMALL_LATENTS = (2, 3, 4, 6, 8, 12, 16)
+SMALL_CONV_LATENTS = (*SMALL_LATENTS, 24, 32)
 
 
 # ---------- shared helpers ----------
@@ -162,23 +164,28 @@ def run_beta_sweep(betas, seeds, channels, device):
 
 # ---------- Matched error: does the KL help beyond limiting reconstruction? ----------
 
-def run_matched_error(seeds, device):
+def run_matched_error(seeds, channels, device):
     """Compare models with and without the KL at about the same validation MSE.
 
     Arms, all chosen on validation data only:
-        beta1           : wide MLP, KL on. Its validation MSE is the target error
+        beta1           : wide network, KL on. Its validation MSE is the target error
         beta0_earlystop : same network, KL off, stopped when it reaches the target
-        beta0_small     : small MLP, KL off, latent size closest to the target
+        beta0_small     : smaller latent code (and smaller MLP layers), KL off, size closest to the target
         beta0_full      : same network as beta1, KL off, not matched (baseline)
+
+    The networks are MLPs, or ConvVAEs if `channels` is given.
     """
+    arch = "" if channels is None else f"_conv{channels}"
+    latents = SMALL_LATENTS if channels is None else SMALL_CONV_LATENTS
     splits = data.load_splits()
     e3 = load_e3_data(splits)
     x_test = to_tensor(splits["X_test"])
-    train = partial(train_vae, splits["X_train"], splits["X_val"], select="mse", device=device)
+    train = partial(train_vae, splits["X_train"], splits["X_val"], channels=channels, select="mse", device=device)
     rows = []
 
     def record(arm, seed, result, **config):
-        save_run(f"vae_ecg5000_matched_{arm}_seed{seed}", result, {**config, "seed": seed, "select": "mse"})
+        save_run(f"vae_ecg5000_matched{arch}_{arm}_seed{seed}", result,
+                 {**config, "channels": channels, "seed": seed, "select": "mse"})
         e1 = summarize(result.model.score(x_test)["recon"].numpy(), splits["y_test"], data.NORMAL_CLASS)
         row = {"arm": arm, "seed": seed, "latent_dim": config["latent_dim"],
                "hidden": "x".join(map(str, config["hidden"])), "beta": config["beta"],
@@ -187,7 +194,7 @@ def run_matched_error(seeds, device):
         for r in e3_rows(result.model, seed, e3):
             row[f"{r['anomaly_type']}_d{r['distance']:g}"] = r["auroc_recon"]
         rows.append(row)
-        write_csv(rows, METRICS_DIR / "vae_ecg_matched_error.csv")  # after each run, in case of a stop
+        write_csv(rows, METRICS_DIR / f"vae_ecg_matched_error{arch}.csv")  # after each run, in case of a stop
         print(f"{arm:<16} seed={seed}: val mse {row['val_mse']:.4f}, normal mse {row['normal_err']:.4f}, "
               f"E1 AUROC {row['auroc_e1']:.3f}, smoothed d=2 {row['smoothed_d2']:.3f}, "
               f"d=4 {row['smoothed_d4']:.3f}", flush=True)
@@ -199,7 +206,7 @@ def run_matched_error(seeds, device):
     print(f"target validation MSE: {target:.4f}", flush=True)
 
     # 2. Pick the small network's latent size on validation MSE, using the first seed
-    candidates = {z: train(beta=0.0, seed=seeds[0], latent_dim=z, hidden=SMALL_MLP_HIDDEN) for z in SMALL_LATENTS}
+    candidates = {z: train(beta=0.0, seed=seeds[0], latent_dim=z, hidden=SMALL_MLP_HIDDEN) for z in latents}
     for z, result in candidates.items():
         print(f"  small network, latent {z:>2}: val mse {result.best['val_recon']:.4f}", flush=True)
     best_z = min(candidates, key=lambda z: abs(candidates[z].best["val_recon"] - target))
@@ -230,7 +237,8 @@ def print_matched_summary(rows):
 
 # ---------- E3: synthetic anomalies on saved runs ----------
 
-def run_e3(names, figure):
+def run_e3(names, figure=None):
+    """Score saved runs on the synthetic anomalies; plot them if `figure` is given."""
     splits = data.load_splits()
     e3 = load_e3_data(splits)
     x_test = to_tensor(splits["X_test"])
@@ -250,7 +258,8 @@ def run_e3(names, figure):
                 cells = [r[f"auroc_{s}"] for r in rows if r["anomaly_type"] == t]
                 print(f"  {t:<9}" + " ".join(f"{a:>6.3f}" for a in cells))
 
-    vae_plots.plot_e3(all_rows, read_metrics("pca_ecg_E3.csv"), FIGURES_DIR / f"{figure}.png")
+    if figure:
+        vae_plots.plot_e3(all_rows, read_metrics("pca_ecg_E3.csv"), FIGURES_DIR / f"{figure}.png")
 
 
 # ---------- command line ----------
@@ -273,11 +282,12 @@ def main():
 
     matched = commands.add_parser("matched-error", help="KL on vs. off at equal reconstruction error")
     matched.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    matched.add_argument("--channels", type=int, default=None, help="use ConvVAEs with this base width")
     matched.add_argument("--device", default="cpu", help="cpu, cuda or mps")
 
     e3 = commands.add_parser("e3", help="synthetic anomalies, on saved runs")
     e3.add_argument("runs", nargs="+", help="run names in results/runs/")
-    e3.add_argument("--figure", default="vae_ecg_E3", help="figure file name, without .png")
+    e3.add_argument("--figure", default=None, help="figure file name, without .png; omit for no figure")
 
     args = parser.parse_args()
     if args.experiment == "e1":
@@ -285,7 +295,7 @@ def main():
     elif args.experiment == "beta-sweep":
         run_beta_sweep(args.betas, args.seeds, args.channels, args.device)
     elif args.experiment == "matched-error":
-        run_matched_error(args.seeds, args.device)
+        run_matched_error(args.seeds, args.channels, args.device)
     else:
         run_e3(args.runs, args.figure)
 
