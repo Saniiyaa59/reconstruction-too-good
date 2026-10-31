@@ -1,6 +1,17 @@
 """Shared scoring and plotting for every model in the capacity sweeps."""
+import csv
+
 import numpy as np
 from sklearn.metrics import roc_auc_score
+
+
+def write_csv(rows, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
 
 def reconstruction_error(X, X_hat):
     """Per-sample mean squared error."""

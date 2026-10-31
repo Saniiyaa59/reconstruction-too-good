@@ -8,7 +8,6 @@ reconstruction error.
     python src/pca_model.py --exp E3   # E3: test normals vs. distance-matched synthetic anomalies
 """
 import argparse
-import csv
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +17,7 @@ from sklearn.metrics import roc_auc_score
 import anomalies
 import complexity
 import data
-from evaluate import plot_paradox_curve, reconstruction_error, summarize
+from evaluate import plot_paradox_curve, reconstruction_error, summarize, write_csv
 
 ROOT = Path(__file__).resolve().parent.parent
 METRICS_DIR = ROOT / "results" / "metrics"
@@ -34,14 +33,6 @@ QUARTILE_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 
 def score(pca, X):
     return reconstruction_error(X, pca.inverse_transform(pca.transform(X)))
-
-
-def write_csv(rows, path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 def run_e1(splits):

@@ -14,6 +14,8 @@ import math
 import torch
 import torch.nn as nn
 
+SCORES = ["recon", "kl", "neg_elbo"]  # the keys returned by GaussianVAE.score
+
 
 def mlp(sizes):
     """Linear layers with ReLU between them (none after the last)."""

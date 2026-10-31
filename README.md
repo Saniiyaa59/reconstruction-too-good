@@ -101,14 +101,19 @@ smoothing mechanism doesn't fully explain the real-data collapse yet.
 │   ├── evaluate.py         # reconstruction error, AUROC, paradox-curve plot
 │   ├── pca_model.py        # PCA baseline: E1, E2, E3
 │   ├── frequency_check.py  # why PCA misses smoothed beats
-│   └── vae.py              # MLP VAE with learned σ_x
+│   ├── vae.py              # MLP and conv VAEs with learned σ_x
+│   ├── train.py            # train one VAE; save and load runs
+│   ├── vae_experiments.py  # VAE experiments: E1, beta sweep, matched error, E3
+│   └── vae_plots.py        # figures for the VAE experiments
+├── scripts/
+│   └── scc_ecg.sh          # job script for BU's SCC
 ├── results/
 │   ├── figures/
 │   └── metrics/            # CSVs (gitignored)
 └── data/                   # downloaded and cached splits (gitignored)
 ```
 
-Planned: `src/train.py`, `src/diffusion.py`, an MIT-BIH loader, and
+Planned: `src/diffusion.py`, an MIT-BIH loader, and
 `blog/draft.md`.
 
 ## Setup
@@ -133,6 +138,10 @@ python src/pca_model.py             # E1: PCA capacity sweep
 python src/pca_model.py --exp E2    # E2: real anomalies by complexity quartile
 python src/pca_model.py --exp E3    # E3: distance-matched synthetic anomalies
 python src/frequency_check.py       # frequency analysis at FFT cutoffs 5-20
+python src/vae_experiments.py e1             # VAE: AUROC vs. latent size
+python src/vae_experiments.py beta-sweep     # VAE: lower beta on a no-bottleneck network
+python src/vae_experiments.py matched-error  # VAE: KL on vs. off at equal reconstruction error
+python src/vae_experiments.py e3 RUN         # VAE: synthetic anomalies, on saved runs
 ```
 
 ## Background

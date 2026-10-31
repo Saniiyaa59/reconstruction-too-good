@@ -33,8 +33,8 @@ python src/pca_model.py
 python src/pca_model.py --exp E3
 
 # The MLPs train faster on the CPU; only the conv VAE gains from the GPU
-python src/train.py --matched-error
-python src/train.py --device cuda --beta-sweep --channels 32 --betas 1 0 --seeds 0
-python src/train.py --e3 vae_ecg5000_sweep_conv32_b1_seed0 vae_ecg5000_sweep_conv32_b0_seed0 \
-    --e3-figure vae_ecg_E3_conv32
+python src/vae_experiments.py matched-error
+python src/vae_experiments.py beta-sweep --device cuda --channels 32 --betas 1 0 --seeds 0
+python src/vae_experiments.py e3 vae_ecg5000_sweep_conv32_b1_seed0 vae_ecg5000_sweep_conv32_b0_seed0 \
+    --figure vae_ecg_E3_conv32
 

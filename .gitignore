@@ -3,3 +3,4 @@ data/
 metrics/
 __pycache__/
 results/runs/
+scc_results/
