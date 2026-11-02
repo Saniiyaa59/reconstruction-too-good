@@ -7,7 +7,7 @@ import anomalies
 from vae import SCORES
 
 # Default categorical palette, fixed order
-PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#7d5bd6", "#2fb3c7", "#8c6d3f"]
 PCA_COLOR = "0.45"
 
 

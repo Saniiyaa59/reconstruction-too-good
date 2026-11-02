@@ -26,7 +26,7 @@ FIGURES_DIR = ROOT / "results" / "figures"
 KS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120]
 E3_PANELS = [2, 20, 50, 80, 120]  # k values shown in the E3 figure
 # Default categorical palette, fixed order; line style also marks the direction
-TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#7d5bd6", "#2fb3c7", "#8c6d3f"]
 # One blue ramp, light -> dark = simplest -> most complex quartile
 QUARTILE_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 

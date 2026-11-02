@@ -8,13 +8,22 @@ Simpler types remove structure, complex types add it:
     clipped  : main peak clipped at the (1 - a) quantile                simpler
     noise    : additive Gaussian noise, a = noise scale                 complex
     spikes   : 3 narrow pulses of height a                              complex
+    flip     : the central fraction a of the beat reversed in time      neutral
+    speedup  : beat squeezed in time around its main peak by 1 + a      simpler
+    wander   : linear baseline drift of total rise a                    simpler
+
+flip, speedup and wander follow Goswami et al. (ICLR 2023), who inject each
+anomaly over whole cycles; one beat is one cycle here, so ours change whole
+beats. Their scale and contextual (a*x + b) types are left out: renormalizing
+a whole beat undoes any a*x + b exactly, so they only make sense on part of a beat.
 
 For ECG5000 every anomaly is renormalized to its source beat's mean and std,
 so it can't be detected by scale. For each beat we bisect on `a` until the
 distance d = ||x_anom - x|| hits a target in DISTANCES, so every type covers
 the same distances. Random parts (noise vector, spike positions, flatline
 centre) are drawn once per beat and type, so the distance levels differ only
-in strength.
+in strength. Each type has its own random stream, so adding a type doesn't
+change the others.
 
     python src/anomalies.py    # generate from ECG5000 test normals and summarize
 """
@@ -58,6 +67,30 @@ def spikes(x, a, aux):
     return x + a * (signs * np.exp(-0.5 * (t - positions) ** 2)).sum(axis=1)
 
 
+def flip(x, a, aux):
+    # a = 1 reverses the whole beat (Goswami's flip). Smaller a reverses a
+    # central segment of length a * L, with blended edges as in flatline.
+    i = np.arange(len(x))
+    c = (len(x) - 1) / 2
+    w = np.clip(a * len(x) / 2 + 0.5 - np.abs(i - c), 0, 1)
+    return (1 - w) * x + w * x[::-1]
+
+
+def speedup(x, a, aux):
+    # Resample at peak + (t - peak) * (1 + a): the beat gets narrower around
+    # its main peak and the ends are padded with the edge values. The main
+    # peak is usually the dip at the start, so this leaves a flat tail, which
+    # measures as simpler.
+    t = np.arange(len(x))
+    peak = np.argmax(np.abs(x - np.median(x)))
+    return np.interp(peak + (t - peak) * (1 + a), t, x)
+
+
+def wander(x, a, aux):
+    # aux = +1 or -1 picks a rising or falling baseline
+    return x + aux * a * np.linspace(0, 1, len(x))
+
+
 # name -> (generator, direction, max strength, draw random aux from (rng, L))
 TYPES = {
     "smoothed": (smoothed, "simpler", 40.0, lambda rng, L: None),
@@ -67,6 +100,9 @@ TYPES = {
     "spikes": (spikes, "complex", 50.0,
                lambda rng, L: (rng.choice(np.arange(3, L - 3), N_SPIKES, replace=False),
                                rng.choice([-1.0, 1.0], N_SPIKES))),
+    "flip": (flip, "neutral", 1.0, lambda rng, L: None),
+    "speedup": (speedup, "simpler", 1.0, lambda rng, L: None),
+    "wander": (wander, "simpler", 20.0, lambda rng, L: rng.choice([-1.0, 1.0])),
 }
 
 
@@ -107,12 +143,12 @@ def generate(X, types=tuple(TYPES), distances=DISTANCES, renorm=True, seed=0):
     Returns a dict of arrays: X, source (row index into the input), anomaly_type,
     direction, distance (target), dial (matched strength).
     """
-    rng = np.random.default_rng(seed)
+    rngs = {name: np.random.default_rng([seed, list(TYPES).index(name)]) for name in types}
     out = {k: [] for k in ["X", "source", "anomaly_type", "direction", "distance", "dial"]}
     for i, x in enumerate(X):
         for name in types:
             gen, direction, a_max, draw = TYPES[name]
-            aux = draw(rng, len(x))
+            aux = draw(rngs[name], len(x))
             for d in distances:
                 match = match_distance(x, gen, aux, d, a_max, renorm)
                 if match is None:
