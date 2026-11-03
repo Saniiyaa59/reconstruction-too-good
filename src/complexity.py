@@ -13,6 +13,7 @@ values mean more complex for every measure.
 import zlib
 
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
 # Fixed quantization range so every beat (real or synthetic) is quantized the
 # same way. ECG5000 values lie in about [-7.1, 7.4]; anything outside is clipped.
@@ -51,6 +52,29 @@ def compute_all(X, include_var=False):
     if include_var:
         out["complexity_var"] = variance(X)
     return out
+
+
+def quartiles(comp, is_normal):
+    """Quartile (1-4) of every beat for each measure, with edges set on the anomalous beats. Q1 = simplest."""
+    out = {}
+    for name, c in comp.items():
+        edges = np.quantile(c[~is_normal], [0.25, 0.5, 0.75])
+        out[name] = np.searchsorted(edges, c, side="right") + 1
+    return out
+
+
+def quartile_rows(scores, is_normal, comp, quartile):
+    """AUROC of all normals vs. the anomalies in each quartile, for each measure."""
+    rows = []
+    for name in comp:
+        for q in range(1, 5):
+            m = is_normal | (quartile[name] == q)
+            in_q = m & ~is_normal
+            rows.append({"measure": name.removeprefix("complexity_"), "quartile": q,
+                         "n": int(in_q.sum()),
+                         "range": f"{comp[name][in_q].min():.3g}-{comp[name][in_q].max():.3g}",
+                         "auroc": roc_auc_score(~is_normal[m], scores[m])})
+    return rows
 
 
 if __name__ == "__main__":

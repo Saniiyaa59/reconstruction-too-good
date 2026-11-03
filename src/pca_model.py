@@ -58,25 +58,12 @@ def run_e2(splits):
     X, y = splits["X_test"], splits["y_test"]
     is_normal = y == data.NORMAL_CLASS
     comp = complexity.compute_all(X)
-
-    # Quartiles of each measure over the anomalous beats; Q1 = simplest
-    quartile = {}
-    for name, c in comp.items():
-        edges = np.quantile(c[~is_normal], [0.25, 0.5, 0.75])
-        quartile[name] = np.searchsorted(edges, c, side="right") + 1
+    quartile = complexity.quartiles(comp, is_normal)
 
     rows = []
     for k in KS:
         pca = PCA(n_components=k).fit(splits["X_train"])
-        s = score(pca, X)
-        for name in comp:
-            for q in range(1, 5):
-                m = is_normal | (quartile[name] == q)
-                in_q = m & ~is_normal
-                rows.append({"k": k, "measure": name.removeprefix("complexity_"), "quartile": q,
-                             "n": int(in_q.sum()),
-                             "range": f"{comp[name][in_q].min():.3g}-{comp[name][in_q].max():.3g}",
-                             "auroc": roc_auc_score(~is_normal[m], s[m])})
+        rows += [{"k": k, **r} for r in complexity.quartile_rows(score(pca, X), is_normal, comp, quartile)]
 
     measures = [n.removeprefix("complexity_") for n in comp]
     print("median complexity per class (class 1 = normal)")

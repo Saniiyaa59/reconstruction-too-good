@@ -9,6 +9,8 @@ from vae import SCORES
 # Default categorical palette, fixed order
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#7d5bd6", "#2fb3c7", "#8c6d3f"]
 PCA_COLOR = "0.45"
+# One blue ramp, light -> dark = simplest -> most complex quartile (as in the PCA E2 figure)
+QUARTILE_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 
 
 def style_auroc_axis(ax):
@@ -88,6 +90,32 @@ def plot_beta_sweep(rows, pca_rows, path):
     ax.legend(loc="lower left", frameon=False)
     ax.set_title("VAE β sweep vs. PCA on ECG5000", fontsize=11)
     fig.tight_layout()
+    save(fig, path)
+
+
+def plot_e2(rows, pca_e2_rows, pca_rows, path):
+    """AUROC per complexity quartile vs. normal test error: PCA as lines, each VAE run as points."""
+    pca_err = {r["k"]: float(r["normal_err"]) for r in pca_rows}
+    measures = list(dict.fromkeys(r["measure"] for r in rows))
+
+    fig, axes = plt.subplots(1, len(measures), figsize=(4.2 * len(measures), 3.8), sharey=True, squeeze=False)
+    for ax, measure in zip(axes[0], measures):
+        for q, color in zip(range(1, 5), QUARTILE_COLORS):
+            pca = [r for r in pca_e2_rows if r["measure"] == measure and int(r["quartile"]) == q]
+            ax.plot([pca_err[r["k"]] for r in pca], [float(r["auroc"]) for r in pca], "--",
+                    color=color, lw=1.5)
+            vae = [r for r in rows if r["measure"] == measure and r["quartile"] == q]
+            ax.plot([r["normal_err"] for r in vae], [r["auroc"] for r in vae], "o", color=color, ms=5,
+                    label=f"Q{q}" + (" (simplest)" if q == 1 else " (most complex)" if q == 4 else ""))
+        style_auroc_axis(ax)
+        style_error_axis(ax)
+        ax.set_xlabel("normal test MSE (log)")
+        ax.set_title(f"anomalies split by {measure}", fontsize=10)
+    axes[0][0].set_ylabel("AUROC (test normals vs. quartile)")
+    fig.legend(*axes[0][0].get_legend_handles_labels(), loc="lower center", ncol=4, fontsize=8, frameon=False)
+    fig.suptitle("Real anomalies by complexity quartile: PCA (dashed lines, k = 1 to 120) vs. VAE runs (points)",
+                 fontsize=11)
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
     save(fig, path)
 
 

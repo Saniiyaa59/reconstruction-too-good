@@ -5,6 +5,7 @@
     python src/vae_experiments.py beta-sweep --channels 32 --betas 1 0 --seeds 0   # the same, conv VAE
     python src/vae_experiments.py matched-error          # KL on vs. off at equal reconstruction error
     python src/vae_experiments.py matched-error --channels 32   # the same, conv VAE
+    python src/vae_experiments.py e2 RUN [RUN ...]       # real anomalies by complexity quartile, on saved runs
     python src/vae_experiments.py e3 RUN [RUN ...]       # synthetic anomalies, on saved runs
 
 Add --device cuda to train on a GPU. This speeds up the conv VAE; small MLPs are faster on the CPU.
@@ -21,6 +22,7 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 import anomalies
+import complexity
 import data
 import vae_plots
 from evaluate import summarize, write_csv
@@ -237,6 +239,31 @@ def print_matched_summary(rows):
 
 # ---------- E3: synthetic anomalies on saved runs ----------
 
+def run_e2(names, figure=None):
+    """Score saved runs on the real anomalies split into complexity quartiles (the same split as PCA E2)."""
+    splits = data.load_splits()
+    X, y = splits["X_test"], splits["y_test"]
+    is_normal = y == data.NORMAL_CLASS
+    comp = complexity.compute_all(X)
+    quartile = complexity.quartiles(comp, is_normal)
+
+    rows = []
+    for name in names:
+        model, config = load_run(name)
+        recon = model.score(to_tensor(X))["recon"].numpy()
+        normal_err = float(recon[is_normal].mean())
+        run_rows = complexity.quartile_rows(recon, is_normal, comp, quartile)
+        rows += [{"run": name, "channels": config.get("channels"), "beta": config["beta"],
+                  "seed": config["seed"], "normal_err": normal_err, **r} for r in run_rows]
+        zlib = [r["auroc"] for r in run_rows if r["measure"] == "zlib"]
+        print(f"{name:<40} normal mse {normal_err:.4f}  zlib Q1-Q4 " + " ".join(f"{a:.3f}" for a in zlib))
+
+    write_csv(rows, METRICS_DIR / f"{figure or 'vae_ecg_E2'}.csv")
+    if figure:
+        vae_plots.plot_e2(rows, read_metrics("pca_ecg_E2.csv"), read_metrics("pca_ecg.csv"),
+                          FIGURES_DIR / f"{figure}.png")
+
+
 def run_e3(names, figure=None):
     """Score saved runs on the synthetic anomalies; plot them if `figure` is given."""
     splits = data.load_splits()
@@ -285,6 +312,10 @@ def main():
     matched.add_argument("--channels", type=int, default=None, help="use ConvVAEs with this base width")
     matched.add_argument("--device", default="cpu", help="cpu, cuda or mps")
 
+    e2 = commands.add_parser("e2", help="real anomalies by complexity quartile, on saved runs")
+    e2.add_argument("runs", nargs="+", help="run names in results/runs/")
+    e2.add_argument("--figure", default=None, help="figure (and CSV) name, without extension; omit for no figure")
+
     e3 = commands.add_parser("e3", help="synthetic anomalies, on saved runs")
     e3.add_argument("runs", nargs="+", help="run names in results/runs/")
     e3.add_argument("--figure", default=None, help="figure file name, without .png; omit for no figure")
@@ -296,6 +327,8 @@ def main():
         run_beta_sweep(args.betas, args.seeds, args.channels, args.device)
     elif args.experiment == "matched-error":
         run_matched_error(args.seeds, args.channels, args.device)
+    elif args.experiment == "e2":
+        run_e2(args.runs, args.figure)
     else:
         run_e3(args.runs, args.figure)
 
