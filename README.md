@@ -29,8 +29,10 @@ The full plan is in [PLAN.md](PLAN.md).
   classes 2–5 = abnormal beat types. Beats are already z-normalized per beat by
   UCR. Normal beats are split 70/15/15 (train / val / test); all anomalies go
   to test. Models are trained on normal beats only.
-- **MIT-BIH Arrhythmia** (second dataset, planned): patient-wise split, raw
-  amplitude.
+  Because of the per-beat normalization, the study is about *shape*-based
+  simplicity (smoothing, speedup), not amplitude.
+- **Second dataset** (to be decided): MVTec AD (2D images, where autoencoders
+  are known to reconstruct anomalies too well) or MIT-BIH (raw-amplitude ECG).
 
 ## Experiments
 
@@ -38,8 +40,27 @@ The full plan is in [PLAN.md](PLAN.md).
 |---|---|---|
 | **E1** | real anomaly classes | capacity sweeps (RQ1, RQ2) |
 | **E2** | real classes, split by measured complexity | are the *simpler* real anomalies the ones missed? (RQ3) |
-| **E3** | synthetic, distance-matched: smoothed, flatline, clipped (simpler); noise, spikes (more complex) | RQ3, controlled |
+| **E3** | synthetic, distance-matched (8 types, below) | RQ3, controlled |
 | **E4** | synthetic anomalies built from validation normals | label-free capacity selection (RQ4) |
+
+E3 anomaly types (`src/anomalies.py`), each tuned per beat to a distance
+d ∈ {2, 4, 6, 8} from the source beat and renormalized to its mean and std:
+
+| Type | What it does | Direction |
+|---|---|---|
+| smoothed | Gaussian low-pass filter | simpler |
+| flatline | a segment set to its mean | simpler |
+| clipped | main peak clipped | simpler |
+| speedup | beat squeezed in time around its main peak | simpler |
+| wander | linear baseline drift | simpler |
+| flip | central part of the beat reversed in time | neutral |
+| noise | additive Gaussian noise | more complex |
+| spikes | three narrow pulses | more complex |
+
+flip, speedup and wander follow Goswami et al. (ICLR 2023), who inject each
+anomaly over whole cycles; one beat is one cycle here. Their scale and
+contextual (a·x + b) types are left out because per-beat renormalization undoes
+them exactly.
 
 Complexity is measured three ways (`src/complexity.py`): zlib compressed size,
 fraction of high-frequency energy, and total variation.
@@ -47,16 +68,17 @@ fraction of high-frequency energy, and total variation.
 ## Status
 
 - [x] ECG5000 download and 70/15/15 split (2043 train / 437 val / 439 normal + 2081 anomalous test)
-- [x] Complexity measures and distance-matched synthetic anomalies
+- [x] Complexity measures and 8 distance-matched synthetic anomaly types
 - [x] PCA: E1, E2, E3, plus a frequency analysis of why smoothed anomalies are missed
-- [x] VAE model with learned decoder variance σ_x (not trained in a sweep yet)
-- [ ] VAE training script and sweeps (latent dim, β) with 5 seeds
+- [x] VAE (MLP and 1D conv, learned σ_x): latent-size sweep, β sweep (3 seeds), matched-error comparison, E2 and E3
 - [ ] Diffusion model (denoiser width × noise level t)
-- [ ] E4 (label-free selection) for all models
-- [ ] MIT-BIH loader and reruns
-- [ ] Blog post (mid-December 2026), then a conference paper
+- [ ] RQ2: which beats the scores rank differently, and why
+- [ ] Second dataset (MVTec AD or MIT-BIH)
+- [ ] Final runs with 5 seeds and bootstrap CIs
+- [ ] E4 (label-free selection), stretch goal
+- [ ] Blog post (mid-December 2026), then possibly a paper
 
-## Results so far (PCA)
+## Results so far: PCA
 
 **E1 – capacity collapse.** AUROC is near perfect at low capacity and falls
 below chance as the number of components k grows.
@@ -73,11 +95,17 @@ below chance as the number of components k grows.
 ![PCA capacity sweep](results/figures/paradox_sanity_check.png)
 
 **E3 – synthetic anomalies.** At low k only distance from normal matters. At
-high k the types separate: noise becomes easier to detect while smoothed beats
-fall to AUROC ≈ 0.01, at every distance. The cause (`src/frequency_check.py`):
-once PCA can reconstruct any smooth shape, its error mostly measures
-high-frequency jitter, which smoothed beats lack. This holds for FFT cutoffs
-from bin 5 to 20.
+high k the types separate: noise, spikes and flip stay easy to detect while
+smoothed beats fall to AUROC ≈ 0.01, at every distance, and speedup (also
+simpler) falls with them (0.15 at k = 120, d = 2). The cause
+(`src/frequency_check.py`): once PCA can reconstruct any smooth shape, its
+error mostly measures high-frequency jitter, which smoothed beats lack. This
+holds for FFT cutoffs from bin 5 to 20.
+
+wander fails differently: it sits at AUROC ≈ 0.4–0.5 from k = 8 on, at every
+distance. A linear ramp lies almost entirely in the subspace PCA learns from
+normal beats (99.6% of it at k = 8), because normal beats already vary in
+baseline tilt. This failure doesn't depend on high capacity.
 
 ![PCA on synthetic anomalies](results/figures/pca_ecg_E3.png)
 
@@ -88,6 +116,61 @@ below 0.5, and high-frequency energy does not predict the order, so the
 smoothing mechanism doesn't fully explain the real-data collapse yet.
 
 ![PCA on real anomalies by complexity](results/figures/pca_ecg_E2.png)
+
+## Results so far: VAE
+
+Every VAE result is compared with PCA at the same reconstruction error on
+normal test beats.
+
+**E1 – no collapse at the errors reached.** A small MLP VAE (β = 1, latent
+2–128) never gets below MSE ≈ 0.015, where PCA still detects well. To push the
+error lower, we lowered β on networks with no bottleneck (every layer wider
+than the input), 3 seeds each:
+
+| Model | β | Normal MSE | AUROC (recon) |
+|---|---:|---:|---:|
+| wide MLP | 1 | 0.015 | 0.997 |
+| wide MLP | 0 | 0.007 | 0.994 |
+| conv, 32 channels | 1 | 0.009 | 0.992 |
+| conv, 32 channels | 0 | 0.003 | 0.990 |
+| PCA, k = 50 | – | 0.0037 | 0.828 |
+
+At β = 0 the encoder's noise shrinks to ≈ 1e-4, so the model is a plain
+deterministic autoencoder. It still detects at 0.99 at PCA k = 50's error, which
+suggests the divide is linear vs. nonlinear rather than generative vs. not.
+Caveat: no VAE or autoencoder reached PCA's lowest errors (0.0017 at k = 80);
+wider conv models (64, 128 channels) didn't go below ≈ 0.005.
+
+![VAE β sweep vs. PCA](results/figures/vae_ecg_beta_sweep_conv32.png)
+
+**E3 – synthetic anomalies.** The VAEs mostly catch the anomalies PCA misses.
+Smoothed at d = 2: 0.85 (MLP, β = 1) and 0.81 (conv, β = 1), dropping to
+0.54 / 0.61 at β = 0, against 0.05 for PCA at k = 50. Speedup stays at
+0.72–0.87 for every VAE (PCA k = 50: 0.39). wander is hard for every model at
+small distances (≈ 0.5), but the VAEs climb to 0.63–0.78 at d = 8 while PCA
+stays below 0.5.
+
+![VAE on synthetic anomalies](results/figures/vae_ecg_E3_types.png)
+
+**E2 – real anomalies by complexity.** Every complexity quartile stays at
+≈ 0.99 for every VAE run. At PCA k = 50's error, PCA shows a gap (simplest
+quartile 0.79 vs. most complex 0.87); the conv VAEs at the same error show
+none.
+
+**Matched error – does the KL help beyond limiting reconstruction?** We
+compared β = 1 with three β = 0 models (stopped early, smaller latent, fully
+trained) at about the same validation error. Smoothed d = 2, MLP: β = 1 0.86,
+smaller 0.86, stopped early 0.79, fully trained (lower error) 0.54. At matched
+error, removing the KL costs little; what hurts detection is reconstructing
+more detail. The smaller and early-stopped models also differ from β = 1 in
+size or training length, so this compares the KL with other ways of limiting
+reconstruction, not the KL alone.
+
+**Scores (RQ2, early).** With a learned, small σ_x, the ELBO is dominated by
+the reconstruction term and tracks recon within ≈ 0.01. The KL score is only
+meaningful at β = 1 (below that it flips under 0.5 for the conv VAE). At β = 1
+it catches different anomalies than recon: best on wander (0.86 vs. 0.65),
+worst on smoothing (0.56 vs. 0.85), MLP.
 
 ## Repo structure
 
@@ -103,17 +186,19 @@ smoothing mechanism doesn't fully explain the real-data collapse yet.
 │   ├── frequency_check.py  # why PCA misses smoothed beats
 │   ├── vae.py              # MLP and conv VAEs with learned σ_x
 │   ├── train.py            # train one VAE; save and load runs
-│   ├── vae_experiments.py  # VAE experiments: E1, beta sweep, matched error, E3
+│   ├── vae_experiments.py  # VAE experiments: E1, beta sweep, matched error, E2, E3
 │   └── vae_plots.py        # figures for the VAE experiments
 ├── scripts/
-│   └── scc_ecg.sh          # job script for BU's SCC
+│   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
+│   └── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
 ├── results/
 │   ├── figures/
-│   └── metrics/            # CSVs (gitignored)
+│   ├── metrics/            # CSVs (gitignored)
+│   └── runs/               # saved models, one folder per run (gitignored)
 └── data/                   # downloaded and cached splits (gitignored)
 ```
 
-Planned: `src/diffusion.py`, an MIT-BIH loader, and
+Planned: `src/diffusion.py`, a loader for the second dataset, and
 `blog/draft.md`.
 
 ## Setup
@@ -141,8 +226,14 @@ python src/frequency_check.py       # frequency analysis at FFT cutoffs 5-20
 python src/vae_experiments.py e1             # VAE: AUROC vs. latent size
 python src/vae_experiments.py beta-sweep     # VAE: lower beta on a no-bottleneck network
 python src/vae_experiments.py matched-error  # VAE: KL on vs. off at equal reconstruction error
-python src/vae_experiments.py e3 RUN         # VAE: synthetic anomalies, on saved runs
+python src/vae_experiments.py e2 RUN [RUN ...] --figure NAME   # VAE: real anomalies by complexity, on saved runs
+python src/vae_experiments.py e3 RUN [RUN ...] --figure NAME   # VAE: synthetic anomalies, on saved runs
 ```
+
+`beta-sweep` and `matched-error` take `--channels 32` for the conv VAE and
+`--device cuda` for a GPU. On BU's SCC, submit `scripts/scc_ecg.sh` and then
+`scripts/scc_conv.sh` with `qsub`; the conv job needs the first job's data and
+PCA results.
 
 ## Background
 
@@ -157,6 +248,7 @@ conference submission.
 - Yong & Brintrup, "Do Autoencoders Need a Bottleneck for Anomaly Detection?" (arXiv:2202.12637)
 - Zhang et al., "DiffusionAD: Norm-guided One-step Denoising Diffusion for Anomaly Detection" (arXiv:2303.08730)
 - Serrà et al., "Input Complexity and Out-of-Distribution Detection with Likelihood-based Generative Models" (ICLR 2020)
+- Goswami et al., "Unsupervised Model Selection for Time-series Anomaly Detection" (ICLR 2023)
 
 ## License
 

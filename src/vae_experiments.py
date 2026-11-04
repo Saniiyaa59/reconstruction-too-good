@@ -237,7 +237,7 @@ def print_matched_summary(rows):
             for c in columns))
 
 
-# ---------- E3: synthetic anomalies on saved runs ----------
+# ---------- E2: real anomalies by complexity, on saved runs ----------
 
 def run_e2(names, figure=None):
     """Score saved runs on the real anomalies split into complexity quartiles (the same split as PCA E2)."""
@@ -263,6 +263,8 @@ def run_e2(names, figure=None):
         vae_plots.plot_e2(rows, read_metrics("pca_ecg_E2.csv"), read_metrics("pca_ecg.csv"),
                           FIGURES_DIR / f"{figure}.png")
 
+
+# ---------- E3: synthetic anomalies on saved runs ----------
 
 def run_e3(names, figure=None):
     """Score saved runs on the synthetic anomalies; plot them if `figure` is given."""
