@@ -4,17 +4,22 @@ Same setup as the ECG sweep in pca_model.py: fit PCA on normal training images
 only, score each test image by its reconstruction error. With n training
 images PCA has at most n - 1 useful components, so the sweep ends there.
 
-    python src/pca_mvtec.py                     # every category in data/mvtec/
-    python src/pca_mvtec.py --categories bottle
+    python -m src.mvtec.pca                     # every category in data/mvtec/
+    python -m src.mvtec.pca --categories bottle
 """
 import argparse
 
 import numpy as np
 from sklearn.decomposition import PCA
 
-import mvtec
-from evaluate import summarize, write_csv
-from pca_model import FIGURES_DIR, METRICS_DIR, TYPE_COLORS, score
+from src.common import paths
+from src.common.evaluate import summarize, write_csv
+from src.common.plots import PALETTE
+from src.ecg.pca import score
+from src.mvtec import data as mvtec
+
+METRICS_DIR = paths.METRICS_DIR / "mvtec"
+FIGURES_DIR = paths.FIGURES_DIR / "mvtec"
 
 KS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120]
 
@@ -50,7 +55,7 @@ def plot(results, path):
     fig, axes = plt.subplots(1, len(results), figsize=(4.2 * len(results), 3.6), sharey=True, squeeze=False)
     for ax, (category, (rows, defects)) in zip(axes[0], results.items()):
         ks = [r["k"] for r in rows]
-        for color, d in zip(TYPE_COLORS, defects):
+        for color, d in zip(PALETTE, defects):
             ax.plot(ks, [r["auroc_class" + d] for r in rows], "-", color=color, lw=1.2, alpha=0.8, label=d)
         ax.plot(ks, [r["auroc"] for r in rows], "o-", color="black", lw=2, ms=4, label="all defects")
         ax.axhline(0.5, color="gray", ls=":", lw=1)

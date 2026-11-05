@@ -25,7 +25,7 @@ centre) are drawn once per beat and type, so the distance levels differ only
 in strength. Each type has its own random stream, so adding a type doesn't
 change the others.
 
-    python src/anomalies.py    # generate from ECG5000 test normals and summarize
+    python -m src.ecg.anomalies    # generate from ECG5000 test normals and summarize
 """
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
@@ -183,10 +183,8 @@ def plot_examples(X, anoms, path, source=0):
 
 
 if __name__ == "__main__":
-    from pathlib import Path
-
-    import complexity
-    import data
+    from src.common.paths import FIGURES_DIR
+    from src.ecg import complexity, data
 
     splits = data.load_splits()
     X = splits["X_test"][splits["y_test"] == data.NORMAL_CLASS]
@@ -211,6 +209,6 @@ if __name__ == "__main__":
         cells = " ".join(f"{np.median(anom[n][m] - src[n][anoms['source'][m]]):>9.3f}" for n in names)
         print(f"{name:>9} {cells}")
 
-    path = Path(__file__).resolve().parent.parent / "results" / "figures" / "synthetic_examples.png"
+    path = FIGURES_DIR / "ecg" / "synthetic_examples.png"
     plot_examples(X, anoms, path)
     print(f"\nsaved {path.name}")

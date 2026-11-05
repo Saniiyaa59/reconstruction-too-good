@@ -1,12 +1,12 @@
 """VAE experiments on ECG5000. Each one trains or loads models, scores them and saves results.
 
-    python src/vae_experiments.py e1                     # AUROC vs. latent size
-    python src/vae_experiments.py beta-sweep             # how low can the error go as beta falls?
-    python src/vae_experiments.py beta-sweep --channels 32 --betas 1 0 --seeds 0   # the same, conv VAE
-    python src/vae_experiments.py matched-error          # KL on vs. off at equal reconstruction error
-    python src/vae_experiments.py matched-error --channels 32   # the same, conv VAE
-    python src/vae_experiments.py e2 RUN [RUN ...]       # real anomalies by complexity quartile, on saved runs
-    python src/vae_experiments.py e3 RUN [RUN ...]       # synthetic anomalies, on saved runs
+    python -m src.ecg.vae_experiments e1                     # AUROC vs. latent size
+    python -m src.ecg.vae_experiments beta-sweep             # how low can the error go as beta falls?
+    python -m src.ecg.vae_experiments beta-sweep --channels 32 --betas 1 0 --seeds 0   # the same, conv VAE
+    python -m src.ecg.vae_experiments matched-error          # KL on vs. off at equal reconstruction error
+    python -m src.ecg.vae_experiments matched-error --channels 32   # the same, conv VAE
+    python -m src.ecg.vae_experiments e2 RUN [RUN ...]       # real anomalies by complexity quartile, on saved runs
+    python -m src.ecg.vae_experiments e3 RUN [RUN ...]       # synthetic anomalies, on saved runs
 
 Add --device cuda to train on a GPU. This speeds up the conv VAE; small MLPs are faster on the CPU.
 """
@@ -14,24 +14,21 @@ import argparse
 import csv
 import time
 from functools import partial
-from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
-import anomalies
-import complexity
-import data
-import vae_plots
-from evaluate import summarize, write_csv
-from train import load_run, save_run, train_vae
-from vae import SCORES
+from src.common import paths
+from src.common.evaluate import summarize, write_csv
+from src.common.train import load_run, save_run, train_vae
+from src.common.vae import SCORES
+from src.ecg import anomalies, complexity, data
+from src.ecg import plots as vae_plots
 
-ROOT = Path(__file__).resolve().parent.parent
-METRICS_DIR = ROOT / "results" / "metrics"
-FIGURES_DIR = ROOT / "results" / "figures"
+METRICS_DIR = paths.METRICS_DIR / "ecg"
+FIGURES_DIR = paths.FIGURES_DIR / "ecg"
 
 # No bottleneck: the hidden layers and latent code are wider than the 140-point input
 WIDE_MLP = {"latent_dim": 256, "hidden": (512, 256)}

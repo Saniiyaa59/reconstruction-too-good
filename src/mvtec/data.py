@@ -11,16 +11,15 @@ and contrast still carry information.
 
 Download the categories from mvtec.com into data/mvtec/<category>/ first.
 
-    python src/mvtec.py    # build the splits for the downloaded categories and plot examples
+    python -m src.mvtec.data    # build the splits for the downloaded categories and plot examples
 """
-from pathlib import Path
-
 import numpy as np
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
-MVTEC_DIR = ROOT / "data" / "mvtec"
-PROCESSED_DIR = ROOT / "data" / "processed"
+from src.common.paths import DATA_DIR, FIGURES_DIR
+
+MVTEC_DIR = DATA_DIR / "mvtec"
+PROCESSED_DIR = DATA_DIR / "processed"
 
 SIZE = 64
 SEED = 0
@@ -81,7 +80,7 @@ def plot_examples(category, splits, path, size=SIZE):
 
 
 if __name__ == "__main__":
-    figures = ROOT / "results" / "figures"
+    figures = FIGURES_DIR / "mvtec"
     for cat_dir in sorted(p for p in MVTEC_DIR.iterdir() if p.is_dir()):
         s = load_splits(cat_dir.name)
         n_normal = int((s["y_test"] == 0).sum())

@@ -5,8 +5,8 @@ sweeping the size of the latent code, and scores each test image by its
 reconstruction error (image-level AUROC). As in the ECG beta sweep, the best
 epoch is the one with the lowest validation MSE.
 
-    python src/ae_mvtec.py --device mps                  # every category in data/mvtec/
-    python src/ae_mvtec.py --categories bottle --latents 64 12288
+    python -m src.mvtec.ae --device mps                  # every category in data/mvtec/
+    python -m src.mvtec.ae --categories bottle --latents 64 12288
 """
 import argparse
 import csv
@@ -17,11 +17,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 
-import mvtec
-from evaluate import summarize, write_csv
-from pca_model import FIGURES_DIR, METRICS_DIR
-from train import save_run, train_vae
-from vae_plots import PALETTE, plot_pca_curve, save, style_auroc_axis, style_error_axis
+from src.common import paths
+from src.common.evaluate import summarize, write_csv
+from src.common.plots import PALETTE, plot_pca_curve, save, style_auroc_axis, style_error_axis
+from src.common.train import save_run, train_vae
+from src.mvtec import data as mvtec
+
+METRICS_DIR = paths.METRICS_DIR / "mvtec"
+FIGURES_DIR = paths.FIGURES_DIR / "mvtec"
 
 # Latent code = an 8x8 grid with 1, 4, 16, 64 or 192 channels; 12288 equals the input size
 LATENTS = [64, 256, 1024, 4096, 12288]

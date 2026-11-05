@@ -25,14 +25,14 @@ export OMP_NUM_THREADS=${NSLOTS:-8}
 python -c "import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.cuda.get_device_name(0))"
 
 # 1. Does the KL help in the conv model? KL on vs. off at equal error
-python src/vae_experiments.py matched-error --device cuda --channels 32
+python -m src.ecg.vae_experiments matched-error --device cuda --channels 32
 
 # 2. How low can a conv VAE with the KL on get? (includes beta 1 and 0 with 3 seeds)
-python src/vae_experiments.py beta-sweep --device cuda --channels 32
+python -m src.ecg.vae_experiments beta-sweep --device cuda --channels 32
 
 # 3. Can wider models with the KL off reach PCA k=80's error of 0.0017?
-python src/vae_experiments.py beta-sweep --device cuda --channels 64 --betas 0
-python src/vae_experiments.py beta-sweep --device cuda --channels 128 --betas 0
+python -m src.ecg.vae_experiments beta-sweep --device cuda --channels 64 --betas 0
+python -m src.ecg.vae_experiments beta-sweep --device cuda --channels 128 --betas 0
 
 # 4. Synthetic anomalies: every sweep model gets a CSV, seed 0 also gets a figure
 all_runs=()
@@ -46,9 +46,9 @@ for channels in 64 128; do
         all_runs+=("vae_ecg5000_sweep_conv${channels}_b0_seed${seed}")
     done
 done
-python src/vae_experiments.py e3 "${all_runs[@]}"
-python src/vae_experiments.py e3 vae_ecg5000_sweep_conv32_b{1,0.1,0.01,0.001,0}_seed0 \
+python -m src.ecg.vae_experiments e3 "${all_runs[@]}"
+python -m src.ecg.vae_experiments e3 vae_ecg5000_sweep_conv32_b{1,0.1,0.01,0.001,0}_seed0 \
     --figure vae_ecg_E3_conv32_betas
-python src/vae_experiments.py e3 vae_ecg5000_sweep_conv32_b0_seed0 vae_ecg5000_sweep_conv64_b0_seed0 \
+python -m src.ecg.vae_experiments e3 vae_ecg5000_sweep_conv32_b0_seed0 vae_ecg5000_sweep_conv64_b0_seed0 \
     vae_ecg5000_sweep_conv128_b0_seed0 --figure vae_ecg_E3_conv_widths
 

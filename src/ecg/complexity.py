@@ -8,7 +8,7 @@ values mean more complex for every measure.
     tv       : total variation, sum of |x[i+1] - x[i]|
     var      : variance (only meaningful for data that isn't z-normalized per beat)
 
-    python src/complexity.py    # per-class summary on the ECG5000 test set
+    python -m src.ecg.complexity    # per-class summary on the ECG5000 test set
 """
 import zlib
 
@@ -78,7 +78,7 @@ def quartile_rows(scores, is_normal, comp, quartile):
 
 
 if __name__ == "__main__":
-    import data
+    from src.ecg import data
 
     splits = data.load_splits()
     X, y = splits["X_test"], splits["y_test"]

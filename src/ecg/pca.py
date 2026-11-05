@@ -3,32 +3,26 @@
 Fits PCA on normal training beats only and scores each test beat by its
 reconstruction error.
 
-    python src/pca_model.py            # E1: test normals vs. real anomaly classes
-    python src/pca_model.py --exp E2   # E2: real anomalies split by complexity quartile
-    python src/pca_model.py --exp E3   # E3: test normals vs. distance-matched synthetic anomalies
+    python -m src.ecg.pca            # E1: test normals vs. real anomaly classes
+    python -m src.ecg.pca --exp E2   # E2: real anomalies split by complexity quartile
+    python -m src.ecg.pca --exp E3   # E3: test normals vs. distance-matched synthetic anomalies
 """
 import argparse
-from pathlib import Path
 
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 
-import anomalies
-import complexity
-import data
-from evaluate import plot_paradox_curve, reconstruction_error, summarize, write_csv
+from src.common import paths
+from src.common.evaluate import plot_paradox_curve, reconstruction_error, summarize, write_csv
+from src.common.plots import PALETTE, QUARTILE_COLORS
+from src.ecg import anomalies, complexity, data
 
-ROOT = Path(__file__).resolve().parent.parent
-METRICS_DIR = ROOT / "results" / "metrics"
-FIGURES_DIR = ROOT / "results" / "figures"
+METRICS_DIR = paths.METRICS_DIR / "ecg"
+FIGURES_DIR = paths.FIGURES_DIR / "ecg"
 
 KS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120]
 E3_PANELS = [2, 20, 50, 80, 120]  # k values shown in the E3 figure
-# Default categorical palette, fixed order; line style also marks the direction
-TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#7d5bd6", "#2fb3c7", "#8c6d3f"]
-# One blue ramp, light -> dark = simplest -> most complex quartile
-QUARTILE_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 
 
 def score(pca, X):
@@ -164,7 +158,7 @@ def plot_e3(rows, path):
 
     fig, axes = plt.subplots(1, len(E3_PANELS), figsize=(3 * len(E3_PANELS), 3.2), sharey=True)
     for ax, k in zip(axes, E3_PANELS):
-        for color, (name, (_, direction, _, _)) in zip(TYPE_COLORS, anomalies.TYPES.items()):
+        for color, (name, (_, direction, _, _)) in zip(PALETTE, anomalies.TYPES.items()):
             pts = [r for r in rows if r["k"] == k and r["anomaly_type"] == name]
             ax.plot([r["distance"] for r in pts], [r["auroc"] for r in pts],
                     "o-" if direction == "simpler" else "s--", color=color, lw=2, ms=6,

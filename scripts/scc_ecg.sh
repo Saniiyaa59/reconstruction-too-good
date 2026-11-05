@@ -26,15 +26,15 @@ export OMP_NUM_THREADS=${NSLOTS:-8}
 python -c "import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.cuda.get_device_name(0))"
 
 # Download ECG5000 if needed and build the splits
-python src/data.py
+python -m src.ecg.data
 
 # The training figures compare against these PCA results
-python src/pca_model.py
-python src/pca_model.py --exp E3
+python -m src.ecg.pca
+python -m src.ecg.pca --exp E3
 
 # The MLPs train faster on the CPU; only the conv VAE gains from the GPU
-python src/vae_experiments.py matched-error
-python src/vae_experiments.py beta-sweep --device cuda --channels 32 --betas 1 0 --seeds 0
-python src/vae_experiments.py e3 vae_ecg5000_sweep_conv32_b1_seed0 vae_ecg5000_sweep_conv32_b0_seed0 \
+python -m src.ecg.vae_experiments matched-error
+python -m src.ecg.vae_experiments beta-sweep --device cuda --channels 32 --betas 1 0 --seeds 0
+python -m src.ecg.vae_experiments e3 vae_ecg5000_sweep_conv32_b1_seed0 vae_ecg5000_sweep_conv32_b0_seed0 \
     --figure vae_ecg_E3_conv32
 

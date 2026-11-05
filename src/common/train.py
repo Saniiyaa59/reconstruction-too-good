@@ -3,17 +3,14 @@
 A run is saved to results/runs/<name>/ as model.pt, config.json and history.csv.
 """
 import json
-from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 import torch
 
-from evaluate import write_csv
-from vae import ConvVAE, ConvVAE2D, MLPVAE
-
-ROOT = Path(__file__).resolve().parent.parent
-RUNS_DIR = ROOT / "results" / "runs"
+from src.common.evaluate import write_csv
+from src.common.paths import RUNS_DIR
+from src.common.vae import ConvVAE, ConvVAE2D, MLPVAE
 
 INPUT_DIM = 140  # points per ECG5000 beat
 

@@ -11,13 +11,13 @@ UCR distributes every beat already z-normalized (mean 0, std ~1 per beat), so
 amplitude and variance carry no information; we keep that preprocessing.
 """
 import urllib.request
-from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = ROOT / "data" / "raw"
-PROCESSED_DIR = ROOT / "data" / "processed"
+from src.common.paths import DATA_DIR
+
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
 
 BASE_URL = ("https://raw.githubusercontent.com/cerenyildiiz/"
             "ecg5000-anomaly-detection-time-series/main/data/")
