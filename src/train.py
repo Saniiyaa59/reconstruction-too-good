@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from evaluate import write_csv
-from vae import ConvVAE, MLPVAE
+from vae import ConvVAE, ConvVAE2D, MLPVAE
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNS_DIR = ROOT / "results" / "runs"
@@ -19,7 +19,7 @@ INPUT_DIM = 140  # points per ECG5000 beat
 
 
 class TrainResult(NamedTuple):
-    model: MLPVAE | ConvVAE  # at its best epoch, on the CPU
+    model: MLPVAE | ConvVAE | ConvVAE2D  # at its best epoch, on the CPU
     history: list            # one dict of validation metrics per epoch
     best_epoch: int
 
@@ -29,15 +29,17 @@ class TrainResult(NamedTuple):
         return self.history[self.best_epoch]
 
 
-def build_model(latent_dim, hidden=(128, 64), channels=None, beta=1.0):
-    """A ConvVAE if `channels` is given, otherwise an MLPVAE."""
+def build_model(latent_dim, hidden=(128, 64), channels=None, beta=1.0, image_size=None):
+    """A ConvVAE2D if `image_size` is given, a ConvVAE if `channels` is given, otherwise an MLPVAE."""
+    if image_size is not None:
+        return ConvVAE2D(image_size, latent_dim, channels=channels or 32, beta=beta)
     if channels is not None:
         return ConvVAE(INPUT_DIM, latent_dim, channels=channels, beta=beta)
     return MLPVAE(INPUT_DIM, latent_dim, hidden=hidden, beta=beta)
 
 
 def train_vae(X_train, X_val, latent_dim, hidden=(128, 64), channels=None, beta=1.0, seed=0,
-              select="loss", stop_at_mse=None, device="cpu",
+              select="loss", stop_at_mse=None, device="cpu", image_size=None,
               lr=1e-3, batch_size=128, max_epochs=3000, patience=200):
     """Train on normal beats and keep the weights from the best validation epoch.
 
@@ -51,7 +53,7 @@ def train_vae(X_train, X_val, latent_dim, hidden=(128, 64), channels=None, beta=
     X_train = torch.tensor(X_train, dtype=torch.float32, device=device)
     X_val = torch.tensor(X_val, dtype=torch.float32, device=device)
 
-    model = build_model(latent_dim, hidden, channels, beta).to(device)
+    model = build_model(latent_dim, hidden, channels, beta, image_size).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     best_metric, best_state, best_epoch = float("inf"), None, 0
     history = []
@@ -100,7 +102,8 @@ def load_run(name):
     """Return (model, config) for a saved run."""
     run_dir = RUNS_DIR / name
     config = json.loads((run_dir / "config.json").read_text())
-    model = build_model(config["latent_dim"], tuple(config["hidden"]), config.get("channels"), config["beta"])
+    model = build_model(config["latent_dim"], tuple(config["hidden"]), config.get("channels"), config["beta"],
+                        config.get("image_size"))
     model.load_state_dict(torch.load(run_dir / "model.pt"))
     model.eval()
     return model, config
