@@ -27,8 +27,9 @@ from src.common.vae import SCORES
 from src.ecg import anomalies, complexity, data
 from src.ecg import plots as vae_plots
 
-METRICS_DIR = paths.METRICS_DIR / "ecg"
-FIGURES_DIR = paths.FIGURES_DIR / "ecg"
+OUT_DIR = paths.RESULTS_DIR / "ecg" / "vae"
+SCORES_DIR = OUT_DIR / "scores"  # per-run CSVs
+PCA_DIR = paths.RESULTS_DIR / "ecg" / "pca"
 
 # No bottleneck: the hidden layers and latent code are wider than the 140-point input
 WIDE_MLP = {"latent_dim": 256, "hidden": (512, 256)}
@@ -49,8 +50,8 @@ def score_beats(model, x, seed):
     return {name: values.numpy() for name, values in model.score(x).items()}
 
 
-def read_metrics(filename):
-    with open(METRICS_DIR / filename) as f:
+def read_pca(filename):
+    with open(PCA_DIR / filename) as f:
         return list(csv.DictReader(f))
 
 
@@ -103,7 +104,7 @@ def run_e1(latent_dims, beta, seed, device):
         scores = score_beats(result.model, x_test, seed)
         write_csv([{"sample_id": i, "class": int(c), **{s: float(scores[s][i]) for s in SCORES}}
                    for i, c in enumerate(y_test)],
-                  METRICS_DIR / f"ecg5000_E1_vae_z{latent_dim}_{tag}.csv")
+                  SCORES_DIR / f"E1_z{latent_dim}_{tag}.csv")
 
         active = result.model.active_units(x_val)
         for s in SCORES:
@@ -115,10 +116,10 @@ def run_e1(latent_dims, beta, seed, device):
               + ", ".join(f"AUROC {r['score']} {r['auroc']:.3f}" for r in rows[-3:])
               + f"  ({time.time() - start:.0f}s)")
 
-    write_csv(rows, METRICS_DIR / f"vae_ecg_E1_{tag}.csv")
-    pca_csv = METRICS_DIR / "pca_ecg.csv"
-    vae_plots.plot_e1(rows, read_metrics("pca_ecg.csv") if pca_csv.exists() else [], latent_dims,
-                      FIGURES_DIR / f"vae_ecg_E1_{tag}.png",
+    write_csv(rows, OUT_DIR / f"E1_latent_sweep_{tag}.csv")
+    pca_csv = PCA_DIR / "E1_capacity_sweep.csv"
+    vae_plots.plot_e1(rows, read_pca(pca_csv.name) if pca_csv.exists() else [], latent_dims,
+                      OUT_DIR / f"E1_latent_sweep_{tag}.png",
                       title=f"VAE capacity sweep on ECG5000 (β = {beta:g}, seed {seed})")
 
 
@@ -133,6 +134,7 @@ def run_beta_sweep(betas, seeds, channels, device):
     x_test, y_test = to_tensor(splits["X_test"]), splits["y_test"]
     x_val = to_tensor(splits["X_val"])
     arch = "" if channels is None else f"_conv{channels}"
+    label = "mlp" if channels is None else f"conv{channels}"  # in result file names
 
     rows = []
     for beta in betas:
@@ -156,9 +158,9 @@ def run_beta_sweep(betas, seeds, channels, device):
                   f"normal mse {row['normal_err']:.4f}, anomaly mse {row['anomaly_err']:.4f}, "
                   f"AUROC recon {row['auroc_recon']:.3f} kl {row['auroc_kl']:.3f} "
                   f"neg_elbo {row['auroc_neg_elbo']:.3f}  ({time.time() - start:.0f}s)", flush=True)
-            write_csv(rows, METRICS_DIR / f"vae_ecg_beta_sweep{arch}.csv")  # after each run, in case of a stop
+            write_csv(rows, OUT_DIR / f"beta_sweep_{label}.csv")  # after each run, in case of a stop
 
-    vae_plots.plot_beta_sweep(rows, read_metrics("pca_ecg.csv"), FIGURES_DIR / f"vae_ecg_beta_sweep{arch}.png")
+    vae_plots.plot_beta_sweep(rows, read_pca("E1_capacity_sweep.csv"), OUT_DIR / f"beta_sweep_{label}.png")
 
 
 # ---------- Matched error: does the KL help beyond limiting reconstruction? ----------
@@ -175,6 +177,7 @@ def run_matched_error(seeds, channels, device):
     The networks are MLPs, or ConvVAEs if `channels` is given.
     """
     arch = "" if channels is None else f"_conv{channels}"
+    label = "mlp" if channels is None else f"conv{channels}"  # in result file names
     latents = SMALL_LATENTS if channels is None else SMALL_CONV_LATENTS
     splits = data.load_splits()
     e3 = load_e3_data(splits)
@@ -193,7 +196,7 @@ def run_matched_error(seeds, channels, device):
         for r in e3_rows(result.model, seed, e3):
             row[f"{r['anomaly_type']}_d{r['distance']:g}"] = r["auroc_recon"]
         rows.append(row)
-        write_csv(rows, METRICS_DIR / f"vae_ecg_matched_error{arch}.csv")  # after each run, in case of a stop
+        write_csv(rows, OUT_DIR / f"matched_error_{label}.csv")  # after each run, in case of a stop
         print(f"{arm:<16} seed={seed}: val mse {row['val_mse']:.4f}, normal mse {row['normal_err']:.4f}, "
               f"E1 AUROC {row['auroc_e1']:.3f}, smoothed d=2 {row['smoothed_d2']:.3f}, "
               f"d=4 {row['smoothed_d4']:.3f}", flush=True)
@@ -255,10 +258,10 @@ def run_e2(names, figure=None):
         zlib = [r["auroc"] for r in run_rows if r["measure"] == "zlib"]
         print(f"{name:<40} normal mse {normal_err:.4f}  zlib Q1-Q4 " + " ".join(f"{a:.3f}" for a in zlib))
 
-    write_csv(rows, METRICS_DIR / f"{figure or 'vae_ecg_E2'}.csv")
+    write_csv(rows, OUT_DIR / f"{figure or 'E2_complexity'}.csv")
     if figure:
-        vae_plots.plot_e2(rows, read_metrics("pca_ecg_E2.csv"), read_metrics("pca_ecg.csv"),
-                          FIGURES_DIR / f"{figure}.png")
+        vae_plots.plot_e2(rows, read_pca("E2_complexity.csv"), read_pca("E1_capacity_sweep.csv"),
+                          OUT_DIR / f"{figure}.png")
 
 
 # ---------- E3: synthetic anomalies on saved runs ----------
@@ -274,7 +277,7 @@ def run_e3(names, figure=None):
         model, config = load_run(name)
         rows = e3_rows(model, config["seed"], e3)
         e1 = summarize(model.score(x_test)["recon"].numpy(), splits["y_test"], data.NORMAL_CLASS)
-        write_csv(rows, METRICS_DIR / f"E3_{name}.csv")
+        write_csv(rows, SCORES_DIR / f"E3_{name}.csv")
         all_rows[name] = rows
 
         print(f"\n{name}: E1 recon AUROC {e1['auroc']:.3f}, normal mse {e1['normal_err']:.4f}")
@@ -285,7 +288,7 @@ def run_e3(names, figure=None):
                 print(f"  {t:<9}" + " ".join(f"{a:>6.3f}" for a in cells))
 
     if figure:
-        vae_plots.plot_e3(all_rows, read_metrics("pca_ecg_E3.csv"), FIGURES_DIR / f"{figure}.png")
+        vae_plots.plot_e3(all_rows, read_pca("E3_synthetic.csv"), OUT_DIR / f"{figure}.png")
 
 
 # ---------- command line ----------

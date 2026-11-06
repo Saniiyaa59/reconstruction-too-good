@@ -92,7 +92,7 @@ below chance as the number of components k grows.
 | 80  | 0.0017 | 0.0016 | 0.554 |
 | 120 | 0.0003 | 0.0002 | 0.205 |
 
-![PCA capacity sweep](results/figures/ecg/paradox_sanity_check.png)
+![PCA capacity sweep](results/ecg/pca/E1_capacity_sweep.png)
 
 **E3 – synthetic anomalies.** At low k only distance from normal matters. At
 high k the types separate: noise, spikes and flip stay easy to detect while
@@ -107,7 +107,7 @@ distance. A linear ramp lies almost entirely in the subspace PCA learns from
 normal beats (99.6% of it at k = 8), because normal beats already vary in
 baseline tilt. This failure doesn't depend on high capacity.
 
-![PCA on synthetic anomalies](results/figures/ecg/pca_ecg_E3.png)
+![PCA on synthetic anomalies](results/ecg/pca/E3_synthetic.png)
 
 **E2 – real anomalies.** At k ≤ 30 complexity doesn't matter. From k = 50, the
 simplest quartile (by zlib) fails first and worst (AUROC 0.09 vs. 0.36 for the
@@ -115,7 +115,7 @@ most complex at k = 120), also within a single class. But every quartile falls
 below 0.5, and high-frequency energy does not predict the order, so the
 smoothing mechanism doesn't fully explain the real-data collapse yet.
 
-![PCA on real anomalies by complexity](results/figures/ecg/pca_ecg_E2.png)
+![PCA on real anomalies by complexity](results/ecg/pca/E2_complexity.png)
 
 ## Results so far: VAE
 
@@ -141,7 +141,7 @@ suggests the divide is linear vs. nonlinear rather than generative vs. not.
 Caveat: no VAE or autoencoder reached PCA's lowest errors (0.0017 at k = 80);
 wider conv models (64, 128 channels) didn't go below ≈ 0.005.
 
-![VAE β sweep vs. PCA](results/figures/ecg/vae_ecg_beta_sweep_conv32.png)
+![VAE β sweep vs. PCA](results/ecg/vae/beta_sweep_conv32.png)
 
 **E3 – synthetic anomalies.** The VAEs mostly catch the anomalies PCA misses.
 Smoothed at d = 2: 0.85 (MLP, β = 1) and 0.81 (conv, β = 1), dropping to
@@ -150,7 +150,7 @@ Smoothed at d = 2: 0.85 (MLP, β = 1) and 0.81 (conv, β = 1), dropping to
 small distances (≈ 0.5), but the VAEs climb to 0.63–0.78 at d = 8 while PCA
 stays below 0.5.
 
-![VAE on synthetic anomalies](results/figures/ecg/vae_ecg_E3_types.png)
+![VAE on synthetic anomalies](results/ecg/vae/E3_types.png)
 
 **E2 – real anomalies by complexity.** Every complexity quartile stays at
 ≈ 0.99 for every VAE run. At PCA k = 50's error, PCA shows a gap (simplest
@@ -194,14 +194,16 @@ worst on smoothing (0.56 vs. 0.85), MLP.
 │   │   └── plots.py        # figures for the VAE experiments
 │   └── mvtec/
 │       ├── data.py         # MVTec AD loader + 85/15 train/val split
+│       ├── scoring.py      # error and KL maps; image, pixel and cell AUROC
 │       ├── pca.py          # PCA capacity sweep
-│       └── ae.py           # conv autoencoder capacity sweep
+│       └── vae_experiments.py  # conv AE (β = 0) and VAE (β = 1), train and score
 ├── scripts/
 │   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
-│   └── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
-├── results/
-│   ├── figures/{ecg,mvtec}/
-│   ├── metrics/{ecg,mvtec}/  # CSVs (gitignored)
+│   ├── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
+│   └── scc_mvtec.sh        # SCC GPU array job: MVTec AE + VAE, one task per category
+├── results/                # see results/README.md for what each figure shows
+│   ├── ecg/{data,pca,vae}/ # figures, each next to its CSV (CSVs gitignored)
+│   ├── mvtec/{data,pca,vae}/
 │   └── runs/               # saved models, one folder per run (gitignored)
 └── data/                   # downloaded and cached splits (gitignored)
 ```
@@ -238,7 +240,8 @@ python -m src.ecg.vae_experiments e3 RUN [RUN ...] --figure NAME   # VAE: synthe
 
 python -m src.mvtec.data            # MVTec: build splits for the categories in data/mvtec/, plot examples
 python -m src.mvtec.pca             # MVTec: PCA capacity sweep
-python -m src.mvtec.ae --device mps # MVTec: conv autoencoder capacity sweep
+python -m src.mvtec.vae_experiments run --device mps   # MVTec: AE + VAE, train (or load) and score
+python -m src.mvtec.vae_experiments plot               # MVTec: AE + VAE vs. PCA figure
 ```
 
 `beta-sweep` and `matched-error` take `--channels 32` for the conv VAE and

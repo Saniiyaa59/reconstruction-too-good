@@ -1,6 +1,6 @@
 .venv/
 data/
-metrics/
+results/**/*.csv
 __pycache__/
 results/runs/
 scc_results/

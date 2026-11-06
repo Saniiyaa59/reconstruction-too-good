@@ -158,25 +158,29 @@ class ConvVAE(GaussianVAE):
 
 
 class ConvVAE2D(GaussianVAE):
-    """2D conv VAE for flattened RGB images: three stride-2 convolutions down to a
-    (size/8) x (size/8) grid, mirrored transposed convolutions up, no skip connections.
+    """2D conv VAE for flattened RGB images: stride-2 convolutions down to an 8 x 8
+    grid (three for 64x64 images, four for 128x128), mirrored transposed convolutions
+    up, no skip connections. Each step down halves the size and doubles the channels.
 
-    The latent code is that grid with latent_dim / grid_cells channels, so latent_dim
-    must be a multiple of the number of grid cells (64 for 64x64 images). Images come
-    in flat, in (height, width, RGB) order as mvtec.py stores them.
+    The latent code is that grid with latent_dim / 64 channels, so latent_dim must be
+    a multiple of 64. Images come in flat, in (height, width, RGB) order as
+    mvtec/data.py stores them.
     """
 
     def __init__(self, image_size, latent_dim, channels=32, beta=1.0, fixed_sigma_x=None):
         super().__init__(3 * image_size * image_size, latent_dim, beta, fixed_sigma_x)
         self.image_size = image_size
-        self.grid = image_size // 8
+        self.grid = 8
+        n_down = (image_size // self.grid).bit_length() - 1
+        if image_size != self.grid * 2 ** n_down or n_down < 1:
+            raise ValueError(f"image_size must be 8 times a power of 2, got {image_size}")
         if latent_dim % self.grid ** 2:
             raise ValueError(f"latent_dim must be a multiple of {self.grid ** 2}")
         self.latent_channels = latent_dim // self.grid ** 2
 
-        widths = [3, channels, 2 * channels, 4 * channels]
+        widths = [3] + [channels * 2 ** i for i in range(n_down)]
         down, up = [], []
-        for i in range(3):
+        for i in range(n_down):
             # Kernel 4, stride 2, padding 1 halves (or doubles) the size exactly
             down += [nn.Conv2d(widths[i], widths[i + 1], 4, stride=2, padding=1), nn.ReLU()]
             up = [nn.ConvTranspose2d(widths[i + 1], widths[i], 4, stride=2, padding=1), nn.ReLU()] + up
@@ -194,3 +198,13 @@ class ConvVAE2D(GaussianVAE):
     def decode(self, z):
         h = torch.relu(self.from_latent(z.view(-1, self.latent_channels, self.grid, self.grid)))
         return self.decoder(h).permute(0, 2, 3, 1).flatten(1)
+
+    @torch.no_grad()
+    def kl_map(self, x):
+        """KL of each grid cell's code from the prior, summed over its channels: (n, grid, grid).
+
+        Summed over all cells it equals the `kl` score.
+        """
+        mu, logvar = self.encode(x)
+        kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+        return kl.view(-1, self.latent_channels, self.grid, self.grid).sum(dim=1)

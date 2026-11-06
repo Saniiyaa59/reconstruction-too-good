@@ -18,8 +18,8 @@ from src.common.evaluate import plot_paradox_curve, reconstruction_error, summar
 from src.common.plots import PALETTE, QUARTILE_COLORS
 from src.ecg import anomalies, complexity, data
 
-METRICS_DIR = paths.METRICS_DIR / "ecg"
-FIGURES_DIR = paths.FIGURES_DIR / "ecg"
+OUT_DIR = paths.RESULTS_DIR / "ecg" / "pca"
+DATA_DIR = paths.RESULTS_DIR / "ecg" / "data"
 
 KS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 80, 120]
 E3_PANELS = [2, 20, 50, 80, 120]  # k values shown in the E3 figure
@@ -40,11 +40,10 @@ def run_e1(splits):
     for r in rows:
         print(f"{r['k']:>4} {r['normal_err']:>11.4g} {r['anomaly_err']:>12.4g} {r['auroc']:>7.3f}")
 
-    write_csv(rows, METRICS_DIR / "pca_ecg.csv")
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    write_csv(rows, OUT_DIR / "E1_capacity_sweep.csv")
     plot_paradox_curve(KS, rows, xlabel="PCA components (k)",
                        title="PCA capacity sweep on ECG5000",
-                       path=FIGURES_DIR / "paradox_sanity_check.png")
+                       path=OUT_DIR / "E1_capacity_sweep.png")
 
 
 def run_e2(splits):
@@ -70,10 +69,9 @@ def run_e2(splits):
     for k in KS:
         print(f"{k:>4} " + " ".join(f"{r['auroc']:>11.3f}" for r in rows if r["k"] == k))
 
-    write_csv(rows, METRICS_DIR / "pca_ecg_E2.csv")
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    plot_e2_complexity(comp, y, FIGURES_DIR / "ecg_complexity_by_class.png")
-    plot_e2(rows, measures, FIGURES_DIR / "pca_ecg_E2.png")
+    write_csv(rows, OUT_DIR / "E2_complexity.csv")
+    plot_e2_complexity(comp, y, DATA_DIR / "complexity_by_class.png")
+    plot_e2(rows, measures, OUT_DIR / "E2_complexity.png")
 
 
 def plot_e2_complexity(comp, y, path):
@@ -93,6 +91,7 @@ def plot_e2_complexity(comp, y, path):
         ax.grid(axis="y", color="0.9", lw=0.8)
     fig.suptitle("Complexity of ECG5000 test beats by class (higher = more complex)", fontsize=11)
     fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
@@ -119,6 +118,7 @@ def plot_e2(rows, measures, path):
                fontsize=8, frameon=False)
     fig.suptitle("PCA on ECG5000: real anomalies by complexity quartile (E2)", fontsize=11)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
@@ -146,9 +146,8 @@ def run_e3(splits):
             cells = [r["auroc"] for r in rows if r["k"] == k and r["anomaly_type"] == name]
             print(f"{k:>4} {name:>9} " + " ".join(f"{a:>6.3f}" for a in cells))
 
-    write_csv(rows, METRICS_DIR / "pca_ecg_E3.csv")
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    plot_e3(rows, FIGURES_DIR / "pca_ecg_E3.png")
+    write_csv(rows, OUT_DIR / "E3_synthetic.csv")
+    plot_e3(rows, OUT_DIR / "E3_synthetic.png")
 
 
 def plot_e3(rows, path):
@@ -174,6 +173,7 @@ def plot_e3(rows, path):
                ncol=len(anomalies.TYPES), fontsize=8, frameon=False)
     fig.suptitle("PCA on ECG5000: distance-matched synthetic anomalies (E3)", fontsize=11)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 

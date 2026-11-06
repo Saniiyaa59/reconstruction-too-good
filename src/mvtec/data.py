@@ -7,22 +7,31 @@ and contrast still carry information.
 
     train : 85% of the normal training images
     val   : the other 15%
-    test  : the official test set (normal + every defect type)
+    test  : the official test set (normal + every defect type), with its
+            ground-truth defect masks at the same resolution (all zero for normals)
 
 Download the categories from mvtec.com into data/mvtec/<category>/ first.
 
-    python -m src.mvtec.data    # build the splits for the downloaded categories and plot examples
+    python -m src.mvtec.data              # build the 128x128 splits for every category and plot examples
+    python -m src.mvtec.data --size 64    # the same at 64x64
 """
+import argparse
+
 import numpy as np
 from PIL import Image
 
-from src.common.paths import DATA_DIR, FIGURES_DIR
+from src.common.paths import DATA_DIR, RESULTS_DIR
 
 MVTEC_DIR = DATA_DIR / "mvtec"
 PROCESSED_DIR = DATA_DIR / "processed"
 
-SIZE = 64
+SIZE = 128  # the first MVTec runs used 64, where the smallest defects are only a few pixels
 SEED = 0
+
+
+def categories():
+    """Names of the downloaded categories (none if only the cached splits are present, as on the SCC)."""
+    return sorted(p.name for p in MVTEC_DIR.iterdir() if p.is_dir()) if MVTEC_DIR.exists() else []
 
 
 def load_images(paths, size):
@@ -30,6 +39,20 @@ def load_images(paths, size):
     images = [np.asarray(Image.open(p).convert("RGB").resize((size, size), Image.BILINEAR))
               for p in paths]
     return (np.stack(images).reshape(len(images), -1) / 255.0).astype(np.float32)
+
+
+def load_masks(test_paths, size):
+    """(n, size, size) boolean defect masks for the test images; all False for normal ones.
+
+    Nearest-neighbour resizing keeps the mask binary; at 128x128 the smallest
+    defect still covers about 6 pixels.
+    """
+    masks = np.zeros((len(test_paths), size, size), dtype=bool)
+    for i, p in enumerate(test_paths):
+        if p.parent.name != "good":
+            mask_path = p.parents[2] / "ground_truth" / p.parent.name / f"{p.stem}_mask.png"
+            masks[i] = np.asarray(Image.open(mask_path).convert("L").resize((size, size), Image.NEAREST)) > 0
+    return masks
 
 
 def make_splits(category, size=SIZE, seed=SEED):
@@ -47,15 +70,22 @@ def make_splits(category, size=SIZE, seed=SEED):
         "X_test": load_images(test_paths, size),
         "y_test": (defect != "good").astype(int),  # 1 = anomaly
         "defect": defect,                          # "good" or the defect type
+        "masks": load_masks(test_paths, size),
     }
 
 
 def load_splits(category, size=SIZE):
     """Load processed splits for one category, building them first if needed."""
     path = PROCESSED_DIR / f"mvtec_{category}_{size}.npz"
-    if not path.exists():
-        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-        np.savez(path, **make_splits(category, size))
+    if path.exists():
+        splits = dict(np.load(path))
+        if "masks" not in splits:  # cached before masks were added
+            test_paths = sorted((MVTEC_DIR / category / "test").glob("*/*.png"))
+            splits["masks"] = load_masks(test_paths, size)
+            np.savez(path, **splits)
+        return splits
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    np.savez(path, **make_splits(category, size))
     return dict(np.load(path))
 
 
@@ -80,11 +110,13 @@ def plot_examples(category, splits, path, size=SIZE):
 
 
 if __name__ == "__main__":
-    figures = FIGURES_DIR / "mvtec"
-    for cat_dir in sorted(p for p in MVTEC_DIR.iterdir() if p.is_dir()):
-        s = load_splits(cat_dir.name)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--size", type=int, default=SIZE)
+    size = parser.parse_args().size
+    for category in categories():
+        s = load_splits(category, size)
         n_normal = int((s["y_test"] == 0).sum())
-        print(f"{cat_dir.name:<8} train {len(s['X_train'])} | val {len(s['X_val'])} | "
+        print(f"{category:<10} train {len(s['X_train'])} | val {len(s['X_val'])} | "
               f"test {len(s['X_test'])} ({n_normal} normal, {len(s['X_test']) - n_normal} anomalous) | "
               f"{s['X_train'].shape[1]} features")
-        plot_examples(cat_dir.name, s, figures / f"mvtec_{cat_dir.name}_examples.png")
+        plot_examples(category, s, RESULTS_DIR / "mvtec" / "data" / f"examples_{category}_{size}.png", size)

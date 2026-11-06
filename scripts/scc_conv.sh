@@ -48,7 +48,7 @@ for channels in 64 128; do
 done
 python -m src.ecg.vae_experiments e3 "${all_runs[@]}"
 python -m src.ecg.vae_experiments e3 vae_ecg5000_sweep_conv32_b{1,0.1,0.01,0.001,0}_seed0 \
-    --figure vae_ecg_E3_conv32_betas
+    --figure E3_conv32_betas
 python -m src.ecg.vae_experiments e3 vae_ecg5000_sweep_conv32_b0_seed0 vae_ecg5000_sweep_conv64_b0_seed0 \
-    vae_ecg5000_sweep_conv128_b0_seed0 --figure vae_ecg_E3_conv_widths
+    vae_ecg5000_sweep_conv128_b0_seed0 --figure E3_conv_widths
 

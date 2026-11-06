@@ -178,12 +178,13 @@ def plot_examples(X, anoms, path, source=0):
         ax.set_xticks([])
     axes[0].legend(fontsize=7)
     fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
 if __name__ == "__main__":
-    from src.common.paths import FIGURES_DIR
+    from src.common.paths import RESULTS_DIR
     from src.ecg import complexity, data
 
     splits = data.load_splits()
@@ -209,6 +210,6 @@ if __name__ == "__main__":
         cells = " ".join(f"{np.median(anom[n][m] - src[n][anoms['source'][m]]):>9.3f}" for n in names)
         print(f"{name:>9} {cells}")
 
-    path = FIGURES_DIR / "ecg" / "synthetic_examples.png"
+    path = RESULTS_DIR / "ecg" / "data" / "synthetic_examples.png"
     plot_examples(X, anoms, path)
     print(f"\nsaved {path.name}")

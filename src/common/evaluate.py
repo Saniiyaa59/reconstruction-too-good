@@ -59,5 +59,6 @@ def plot_paradox_curve(capacities, rows, xlabel, title, path):
     ax.legend(lines, [l.get_label() for l in lines], loc="lower left")
     ax.set_title(title)
     fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
