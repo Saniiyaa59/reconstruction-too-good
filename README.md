@@ -196,7 +196,8 @@ worst on smoothing (0.56 vs. 0.85), MLP.
 │       ├── data.py         # MVTec AD loader + 85/15 train/val split
 │       ├── scoring.py      # error and KL maps; image, pixel and cell AUROC
 │       ├── pca.py          # PCA capacity sweep
-│       └── vae_experiments.py  # conv AE (β = 0) and VAE (β = 1), train and score
+│       ├── vae_experiments.py  # conv AE (β = 0) and VAE (β = 1), train and score
+│       └── defect_maps.py  # one defect type: maps picture and recon-vs-KL scatter
 ├── scripts/
 │   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
 │   ├── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error

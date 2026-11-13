@@ -35,6 +35,8 @@ image size in pixels.
 | `mvtec/pca/<category>_<size>.csv` | Per k and score: normal MSE, image AUROC (overall, per defect type), pixel and cell AUROC | same |
 | `mvtec/vae/sweep_<size>.png` | Image AUROC (max score) vs. normal MSE: PCA curve, AE and VAE per latent size, VAE kl_max | `python -m src.mvtec.vae_experiments plot` |
 | `mvtec/vae/<category>_<size>.csv` | Per model (β, latent size, seed) and score: the same metrics as the PCA CSVs | `python -m src.mvtec.vae_experiments run` |
+| `mvtec/vae/defect_<category>_<defect>_maps.png` | One VAE, one defect type: 2 normal and 4 defective test images as input, reconstruction, error map, KL map | `python -m src.mvtec.defect_maps [--category --defect --run]` |
+| `mvtec/vae/defect_<category>_<defect>_scatter.png` | Recon vs. KL score per test image (normal vs. that defect), with 95th-percentile-of-normal thresholds | same |
 
 MVTec scores (see `src/mvtec/scoring.py`): `mean` = mean squared error over
 the image; `max` = max of the smoothed error map; `kl` / `kl_max` = total / max
