@@ -29,7 +29,7 @@ export OMP_NUM_THREADS=${NSLOTS:-4}
 
 CATEGORIES=(bottle cable capsule carpet grid hazelnut leather metal_nut pill screw tile toothbrush transistor wood zipper)
 CATEGORY=${CATEGORIES[$((SGE_TASK_ID - 1))]}
-SEEDS="0"   # first pass; then "0 1 2"
+SEEDS="0 1 2"   # first pass; then "0 1 2"
 
 # Stop right away if the job can't see a GPU, instead of failing partway through
 python -c "import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.cuda.get_device_name(0))"
