@@ -10,8 +10,8 @@ reconstructs the full, unfiltered beats.
     3. share of each PCA component's energy that is fast
     4. Spearman correlation between PCA error and the input's fast energy
 
-    python src/frequency_check.py                       # cutoffs 5 10 15 20, d = 4
-    python src/frequency_check.py --cutoffs 10 --distance 6
+    python -m src.ecg.frequency_check                   # cutoffs 5 10 15 20, d = 4
+    python -m src.ecg.frequency_check --cutoffs 10 --distance 6
 """
 import argparse
 
@@ -19,8 +19,7 @@ import numpy as np
 from scipy.stats import spearmanr
 from sklearn.decomposition import PCA
 
-import anomalies
-import data
+from src.ecg import anomalies, data
 
 KS = [2, 20, 50, 120]
 COMPONENT_GROUPS = [(0, 5), (5, 20), (20, 50), (50, 120)]

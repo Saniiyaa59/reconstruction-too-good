@@ -1,6 +1,7 @@
 .venv/
-data/
-metrics/
+/data/
+results/**/*.csv
 __pycache__/
 results/runs/
 scc_results/
+.DS_Store

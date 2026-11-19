@@ -1,4 +1,4 @@
-"""Variational autoencoders for flat inputs (e.g. 140-point ECG beats): MLP and 1D conv.
+"""Variational autoencoders for flat inputs: MLP and 1D conv (ECG beats), 2D conv (images).
 
 The decoder is Gaussian with one learned scalar standard deviation sigma_x,
 shared by all D input dims. Training loss is the negative ELBO:
@@ -155,3 +155,56 @@ class ConvVAE(GaussianVAE):
     def decode(self, z):
         h = torch.relu(self.from_latent(z)).view(-1, *self.bottom_shape)
         return self.decoder(h).squeeze(1)
+
+
+class ConvVAE2D(GaussianVAE):
+    """2D conv VAE for flattened RGB images: stride-2 convolutions down to an 8 x 8
+    grid (three for 64x64 images, four for 128x128), mirrored transposed convolutions
+    up, no skip connections. Each step down halves the size and doubles the channels.
+
+    The latent code is that grid with latent_dim / 64 channels, so latent_dim must be
+    a multiple of 64. Images come in flat, in (height, width, RGB) order as
+    mvtec/data.py stores them.
+    """
+
+    def __init__(self, image_size, latent_dim, channels=32, beta=1.0, fixed_sigma_x=None):
+        super().__init__(3 * image_size * image_size, latent_dim, beta, fixed_sigma_x)
+        self.image_size = image_size
+        self.grid = 8
+        n_down = (image_size // self.grid).bit_length() - 1
+        if image_size != self.grid * 2 ** n_down or n_down < 1:
+            raise ValueError(f"image_size must be 8 times a power of 2, got {image_size}")
+        if latent_dim % self.grid ** 2:
+            raise ValueError(f"latent_dim must be a multiple of {self.grid ** 2}")
+        self.latent_channels = latent_dim // self.grid ** 2
+
+        widths = [3] + [channels * 2 ** i for i in range(n_down)]
+        down, up = [], []
+        for i in range(n_down):
+            # Kernel 4, stride 2, padding 1 halves (or doubles) the size exactly
+            down += [nn.Conv2d(widths[i], widths[i + 1], 4, stride=2, padding=1), nn.ReLU()]
+            up = [nn.ConvTranspose2d(widths[i + 1], widths[i], 4, stride=2, padding=1), nn.ReLU()] + up
+        self.encoder = nn.Sequential(*down)
+        self.decoder = nn.Sequential(*up[:-1])  # no activation on the output
+        self.to_mu = nn.Conv2d(widths[-1], self.latent_channels, 1)
+        self.to_logvar = nn.Conv2d(widths[-1], self.latent_channels, 1)
+        self.from_latent = nn.Conv2d(self.latent_channels, widths[-1], 1)
+
+    def encode(self, x):
+        s = self.image_size
+        h = self.encoder(x.view(-1, s, s, 3).permute(0, 3, 1, 2))
+        return self.to_mu(h).flatten(1), self.to_logvar(h).flatten(1)
+
+    def decode(self, z):
+        h = torch.relu(self.from_latent(z.view(-1, self.latent_channels, self.grid, self.grid)))
+        return self.decoder(h).permute(0, 2, 3, 1).flatten(1)
+
+    @torch.no_grad()
+    def kl_map(self, x):
+        """KL of each grid cell's code from the prior, summed over its channels: (n, grid, grid).
+
+        Summed over all cells it equals the `kl` score.
+        """
+        mu, logvar = self.encode(x)
+        kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+        return kl.view(-1, self.latent_channels, self.grid, self.grid).sum(dim=1)
