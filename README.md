@@ -5,10 +5,11 @@
 A model trained only on normal data is supposed to reconstruct anomalies badly.
 But as capacity grows, a model can learn to reconstruct *everything*, anomalies
 included, and detection collapses — sometimes below chance. This project is a
-controlled study of that failure on ECG heartbeats, comparing a linear
-baseline (PCA), a VAE and a diffusion model, and asking whether what makes a
-model *generative* (a KL prior, a noise schedule, a likelihood score) protects
-detection as capacity grows.
+controlled study of that failure, first on ECG heartbeats and then on real
+image defects (MVTec AD), comparing a linear baseline (PCA), an autoencoder, a
+VAE and (planned) a diffusion model. It asks whether what makes a model
+*generative* (a KL prior, a noise schedule, a likelihood score) protects
+detection, and which kinds of anomalies each score catches.
 
 ## Research questions
 
@@ -31,8 +32,11 @@ The full plan is in [PLAN.md](PLAN.md).
   to test. Models are trained on normal beats only.
   Because of the per-beat normalization, the study is about *shape*-based
   simplicity (smoothing, speedup), not amplitude.
-- **Second dataset** (to be decided): MVTec AD (2D images, where autoencoders
-  are known to reconstruct anomalies too well) or MIT-BIH (raw-amplitude ECG).
+- **MVTec AD** (second dataset): 15 industrial categories (5 textures, 10
+  objects) with real defects and pixel-level ground-truth masks; 73 defect
+  types in all. Images resized to 128×128 RGB. Normal training images are split
+  85/15 (train / val); the official test set (normal + defective) is used for
+  evaluation. No synthetic anomalies.
 
 ## Experiments
 
@@ -73,7 +77,9 @@ fraction of high-frequency energy, and total variation.
 - [x] VAE (MLP and 1D conv, learned σ_x): latent-size sweep, β sweep (3 seeds), matched-error comparison, E2 and E3
 - [ ] Diffusion model (denoiser width × noise level t)
 - [ ] RQ2: which beats the scores rank differently, and why
-- [ ] Second dataset (MVTec AD or MIT-BIH)
+- [x] MVTec AD: PCA, conv AE and conv VAE on all 15 categories (5 latent sizes, 3 seeds), error and KL maps
+- [x] MVTec anomaly type: detail removed vs. added, measured from the masks, against KL vs. reconstruction
+- [ ] MVTec: why the KL helps only in tile and cable; one detail measure for textures and objects
 - [ ] Final runs with 5 seeds and bootstrap CIs
 - [ ] E4 (label-free selection), stretch goal
 - [ ] Blog post (mid-December 2026), then possibly a paper
@@ -172,6 +178,46 @@ meaningful at β = 1 (below that it flips under 0.5 for the conv VAE). At β = 1
 it catches different anomalies than recon: best on wander (0.86 vs. 0.65),
 worst on smoothing (0.56 vs. 0.85), MLP.
 
+## Results so far: MVTec AD
+
+All at 128×128. Scores: `mean` / `max` = mean and max of the (smoothed)
+reconstruction error map; `kl_max` = the largest per-cell KL of the VAE's 8×8
+latent grid (β = 1). Image AUROC is computed per defect type (normal test
+images vs. that type). Details in [results/README.md](results/README.md).
+
+**Overall, the three models are close.** AE ≈ VAE ≈ PCA on image AUROC. With
+about 200 training images per category, the networks overfit (validation
+error bottoms out around epoch 300), which may explain why they don't beat
+PCA. ([sweep_128](results/mvtec/vae/sweep_128.png))
+
+**The KL map catches what reconstruction redraws.** On tile/gray_stroke the
+VAE redraws the stroke, so the error map stays dark on it, while the KL map
+lights up: the max error score flags 2 of 16 stroke images, `kl_max` flags 16
+of 16 (threshold: 95th percentile of normal images; latent 1024, seed 0).
+([maps](results/mvtec/vae/defect_tile_gray_stroke_maps.png))
+
+**Which defects the KL helps on (anomaly type, RQ3).** For each defect we
+measure fine detail inside the mask against what should be there: the ring of
+texture around it (textures) or the same spot in normal images (objects,
+which are aligned).
+
+| | defect types | VAE `kl_max` beats AE recon by > .05 (latent 1024, 3 seeds) |
+|---|---|---|
+| detail removed | 11 | 6 |
+| detail added or no clear change | 62 | 0 |
+
+The six: tile gray_stroke (.61 → 1.00), glue_strip, rough, oil; cable
+missing_wire (.40 → .76), missing_cable. The pattern holds in all three seeds.
+([tile](results/mvtec/data/defect_complexity_tile.png),
+[cable](results/mvtec/data/defect_complexity_cable.png),
+[all textures](results/mvtec/data/defect_complexity_textures.png))
+
+Limits: removing detail looks necessary but not sufficient (5 of the 11 don't
+benefit); every win is in tile or cable; on most object categories `kl_max` is
+near chance overall (mean .52 vs. .81 for AE recon); textures and objects use
+two versions of the measure, and the "removed" rule was set after looking at
+the data.
+
 ## Repo structure
 
 ```
@@ -197,7 +243,11 @@ worst on smoothing (0.56 vs. 0.85), MLP.
 │       ├── scoring.py      # error and KL maps; image, pixel and cell AUROC
 │       ├── pca.py          # PCA capacity sweep
 │       ├── vae_experiments.py  # conv AE (β = 0) and VAE (β = 1), train and score
-│       └── defect_maps.py  # one defect type: maps picture and recon-vs-KL scatter
+│       ├── defect_maps.py  # one defect type: maps picture and recon-vs-KL scatter
+│       ├── defect_complexity.py          # textures: defect detail vs. surrounding ring
+│       ├── defect_complexity_aligned.py  # objects: defect detail vs. same spot in normal images
+│       ├── textures_scatter.py           # all texture types: detail vs. KL gain, settings check
+│       └── defect_table.py               # all 73 types: detail removed?, KL gain (all latents, latent 1024)
 ├── scripts/
 │   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
 │   ├── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
@@ -243,6 +293,11 @@ python -m src.mvtec.data            # MVTec: build splits for the categories in 
 python -m src.mvtec.pca             # MVTec: PCA capacity sweep
 python -m src.mvtec.vae_experiments run --device mps   # MVTec: AE + VAE, train (or load) and score
 python -m src.mvtec.vae_experiments plot               # MVTec: AE + VAE vs. PCA figure
+python -m src.mvtec.defect_maps                        # MVTec: tile/gray_stroke error vs. KL maps
+python -m src.mvtec.defect_complexity --category tile          # MVTec: defect detail per type (textures)
+python -m src.mvtec.defect_complexity_aligned --category cable # MVTec: defect detail per type (objects)
+python -m src.mvtec.textures_scatter   # MVTec: all textures, detail vs. KL gain
+python -m src.mvtec.defect_table       # MVTec: 73-type table (CSV)
 ```
 
 `beta-sweep` and `matched-error` take `--channels 32` for the conv VAE and
