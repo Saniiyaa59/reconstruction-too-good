@@ -1,5 +1,5 @@
 .venv/
-data/
+/data/
 results/**/*.csv
 __pycache__/
 results/runs/

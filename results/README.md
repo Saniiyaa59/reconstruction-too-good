@@ -31,6 +31,10 @@ image size in pixels.
 | File | What it shows | Made by |
 |---|---|---|
 | `mvtec/data/examples_<category>_<size>.png` | One normal test image and one per defect type, at the size the models see | `python -m src.mvtec.data [--size 64]` |
+| `mvtec/data/defect_complexity_<texture>.png` | Textures: fine detail inside each defect vs. a ring of nearby texture (log2 ratio < 0 = defect smoother), per image, with each type's KL gain | `python -m src.mvtec.defect_complexity --category tile` |
+| `mvtec/data/defect_complexity_<object>.png` | Objects: detail inside each defect vs. the same spot in normal training images (< 0 = detail removed), with the normal-image range shaded | `python -m src.mvtec.defect_complexity_aligned --category cable` |
+| `mvtec/data/defect_complexity_textures.png` | All 25 texture types: median log2 ratio vs. KL gain (VAE kl_max − AE recon); prints the check over blur and ring settings | `python -m src.mvtec.textures_scatter` |
+| `mvtec/data/defect_types.csv` | All 73 types: detail removed or not, AE recon, VAE kl_max and KL gain, averaged over all latents and at latent 1024 | `python -m src.mvtec.defect_table` |
 | `mvtec/pca/sweep_<size>.png` | PCA: image AUROC vs. k per category; black = max score, gray = mean score, colors = defect types | `python -m src.mvtec.pca [--size 64]` |
 | `mvtec/pca/<category>_<size>.csv` | Per k and score: normal MSE, image AUROC (overall, per defect type), pixel and cell AUROC | same |
 | `mvtec/vae/sweep_<size>.png` | Image AUROC (max score) vs. normal MSE: PCA curve, AE and VAE per latent size, VAE kl_max | `python -m src.mvtec.vae_experiments plot` |
