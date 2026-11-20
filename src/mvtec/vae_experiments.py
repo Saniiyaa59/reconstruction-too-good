@@ -9,6 +9,7 @@ one with the lowest validation MSE.
     python -m src.mvtec.vae_experiments run --categories carpet --device cuda    # AE + VAE, 3 seeds, 128x128
     python -m src.mvtec.vae_experiments run --categories carpet --size 64 --betas 0 --latents 64 12288 --seeds 0
     python -m src.mvtec.vae_experiments plot                                    # figure from the saved CSVs
+    python -m src.mvtec.vae_experiments run-pooled --device cuda                # one model on all 15 categories' normals
 
 Results go to results/mvtec/vae/<category>_<size>.csv, one row per model and score.
 """
@@ -37,22 +38,26 @@ LATENTS = [64, 256, 1024, 4096, 16384]
 # With ~200 training images a batch of 128 gave 2 steps per epoch and runs hit the
 # epoch cap; 32 gives ~7
 TRAINING = {"batch_size": 32, "max_epochs": 3000, "patience": 300}
+# Pooled models see all 15 categories (~3000 images, ~97 batches per epoch instead of ~7), so
+# the same number of optimizer steps takes ~15x fewer epochs
+POOLED_TRAINING = {"batch_size": 32, "max_epochs": 300, "patience": 30}
+POOLED_DIR = paths.RESULTS_DIR / "mvtec" / "vae_pooled"
 
 
 def run_name(category, size, beta, latent_dim, seed):
     return f"mvtec_{category}_{size}_b{beta:g}_z{latent_dim}_seed{seed}"
 
 
-def get_model(splits, category, size, beta, latent_dim, seed, device):
+def get_model(splits, category, size, beta, latent_dim, seed, device, training=TRAINING):
     """(model, best_epoch, trained): load the saved run if there is one, otherwise train and save it."""
     name = run_name(category, size, beta, latent_dim, seed)
     if (paths.RUNS_DIR / name / "model.pt").exists():
         model, config = load_run(name)
         return model, config["best_epoch"], False
     result = train_vae(splits["X_train"], splits["X_val"], latent_dim, beta=beta, seed=seed, select="mse",
-                       device=device, image_size=size, **TRAINING)
+                       device=device, image_size=size, **training)
     save_run(name, result, {"latent_dim": latent_dim, "hidden": [], "channels": 32, "beta": beta, "seed": seed,
-                            "select": "mse", "image_size": size, **TRAINING})
+                            "select": "mse", "image_size": size, **training})
     return result.model, result.best_epoch, True
 
 
@@ -77,6 +82,38 @@ def run(category, betas, latents, seeds, size, device):
                       f"normal mse {by_score['mean']['normal_mse']:.2e}, AUROC mean {by_score['mean']['auroc']:.3f}, "
                       f"max {by_score['max']['auroc']:.3f}{kl}  ({time.time() - start:.0f}s)", flush=True)
                 write_csv(rows, OUT_DIR / f"{category}_{size}.csv")  # after each run, in case of a stop
+
+
+def run_pooled(categories, betas, latents, seeds, size, device, train_only=False):
+    """One model per (beta, latent, seed) trained on the normal images of ALL categories together,
+    then scored on each category's own test set. Writes results/mvtec/vae_pooled/<category>_<size>.csv
+    in the same format as run(), with the run name's category set to "all"."""
+    all_splits = {c: mvtec.load_splits(c, size) for c in categories}
+    pooled = {"X_train": np.concatenate([s["X_train"] for s in all_splits.values()]),
+              "X_val": np.concatenate([s["X_val"] for s in all_splits.values()])}
+    print(f"pooled: {len(pooled['X_train'])} train, {len(pooled['X_val'])} val images from {len(categories)} categories",
+          flush=True)
+    rows = {c: [] for c in categories}
+    for beta in betas:
+        for latent_dim in latents:
+            for seed in seeds:
+                start = time.time()
+                model, best_epoch, trained = get_model(pooled, "all", size, beta, latent_dim, seed, device,
+                                                       POOLED_TRAINING)
+                print(f"all beta {beta:g} latent {latent_dim} seed {seed}: {'trained' if trained else 'loaded'}, "
+                      f"best epoch {best_epoch} ({time.time() - start:.0f}s)", flush=True)
+                if train_only:
+                    continue
+                for c, splits in all_splits.items():
+                    train_err = float(model_scores(model, splits["X_train"], size)[0]["mean"].mean())
+                    scores, maps = model_scores(model, splits["X_test"], size)
+                    rows[c] += [{"category": c, "beta": beta, "latent_dim": latent_dim, "seed": seed,
+                                 "best_epoch": best_epoch, "train_err": train_err, **r}
+                                for r in evaluate(scores, maps, splits)]
+    if not train_only:
+        for c in categories:
+            write_csv(rows[c], POOLED_DIR / f"{c}_{size}.csv")
+        print(f"wrote {len(categories)} CSVs to {POOLED_DIR}")
 
 
 def read_csv(path):
@@ -133,6 +170,16 @@ def main():
     run_cmd.add_argument("--size", type=int, default=mvtec.SIZE, help="image size in pixels")
     run_cmd.add_argument("--device", default="cpu", help="cpu, cuda or mps")
 
+    pooled_cmd = commands.add_parser("run-pooled", help="one model trained on all categories' normals, scored per category")
+    pooled_cmd.add_argument("--categories", nargs="+", default=mvtec.categories())
+    pooled_cmd.add_argument("--betas", type=float, nargs="+", default=[0, 1])
+    pooled_cmd.add_argument("--latents", type=int, nargs="+", default=[1024])
+    pooled_cmd.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    pooled_cmd.add_argument("--size", type=int, default=mvtec.SIZE, help="image size in pixels")
+    pooled_cmd.add_argument("--device", default="cpu", help="cpu, cuda or mps")
+    pooled_cmd.add_argument("--train-only", action="store_true",
+                            help="train (or load) and stop, without scoring or writing CSVs")
+
     plot_cmd = commands.add_parser("plot", help="figure from the saved CSVs")
     plot_cmd.add_argument("--categories", nargs="+", default=mvtec.categories())
     plot_cmd.add_argument("--size", type=int, default=mvtec.SIZE, help="image size in pixels")
@@ -141,6 +188,8 @@ def main():
     if args.command == "run":
         for category in args.categories:
             run(category, args.betas, args.latents, args.seeds, args.size, args.device)
+    elif args.command == "run-pooled":
+        run_pooled(args.categories, args.betas, args.latents, args.seeds, args.size, args.device, args.train_only)
     else:
         plot(args.categories, args.size, OUT_DIR / f"sweep_{args.size}.png")
 
