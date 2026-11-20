@@ -2,11 +2,12 @@
 # BU SCC: conv AE and VAE trained on the normal images of ALL 15 MVTec categories together
 # (latent 1024), then scored on each category's test set. Two steps:
 #
-#     qsub scripts/scc_mvtec_pooled.sh                                         # 1. train: 6 tasks, one model each
-#     qsub -t 1 -v SCORE=1 -hold_jid mvtec_pooled scripts/scc_mvtec_pooled.sh  # 2. score all 6 once they finish
+#     qsub scripts/scc_mvtec_pooled.sh                                      # 1. train: 6 tasks, one model each
+#     qsub -hold_jid mvtec_pooled scripts/scc_mvtec_pooled_score.sh         # 2. score all 6 once they finish
 #
 # Step 1 tasks only train and save (in parallel they would overwrite each other's CSVs).
 # Step 2 loads the 6 saved models and writes results/mvtec/vae_pooled/<category>_128.csv.
+# Each model trains in about 2 minutes on an L40S.
 # Needs data/processed/mvtec_<category>_128.npz for all 15 categories.
 #
 #$ -N mvtec_pooled
@@ -29,15 +30,10 @@ CATEGORIES="bottle cable capsule carpet grid hazelnut leather metal_nut pill scr
 
 python -c "import torch; assert torch.cuda.is_available(); print(torch.__version__, torch.cuda.get_device_name(0))"
 
-if [ "$SCORE" = "1" ]; then
-    echo "scoring all pooled models"
-    python -m src.mvtec.vae_experiments run-pooled --categories $CATEGORIES --device cuda
-else
-    BETAS=(0 0 0 1 1 1)
-    SEEDS=(0 1 2 0 1 2)
-    BETA=${BETAS[$((SGE_TASK_ID - 1))]}
-    SEED=${SEEDS[$((SGE_TASK_ID - 1))]}
-    echo "task $SGE_TASK_ID: beta $BETA, seed $SEED"
-    python -m src.mvtec.vae_experiments run-pooled --categories $CATEGORIES --betas $BETA --seeds $SEED \
-        --device cuda --train-only
-fi
+BETAS=(0 0 0 1 1 1)
+SEEDS=(0 1 2 0 1 2)
+BETA=${BETAS[$((SGE_TASK_ID - 1))]}
+SEED=${SEEDS[$((SGE_TASK_ID - 1))]}
+echo "task $SGE_TASK_ID: beta $BETA, seed $SEED"
+python -m src.mvtec.vae_experiments run-pooled --categories $CATEGORIES --betas $BETA --seeds $SEED \
+    --device cuda --train-only
