@@ -28,7 +28,9 @@ parser.add_argument("--defect", default="gray_stroke")
 parser.add_argument("--run", default="mvtec_tile_128_b1_z1024_seed0", help="a saved VAE (beta > 0) in results/runs/")
 args = parser.parse_args()
 DEFECT = args.defect
-out = paths.RESULTS_DIR / "mvtec" / "vae"
+POOLED = args.run.startswith("mvtec_all_")  # trained on all categories' normals (run-pooled)
+MODEL = "pooled VAE" if POOLED else "VAE"
+out = paths.RESULTS_DIR / "mvtec" / ("vae_pooled" if POOLED else "vae")
 out.mkdir(parents=True, exist_ok=True)
 name = f"defect_{args.category}_{DEFECT}"
 
@@ -66,11 +68,11 @@ for i, idx in enumerate(rows):
     axes[i, 0].set_ylabel(f"{defect[idx]}\nrecon {scores['max'][idx]:.3f}\nKL {scores['kl_max'][idx]:.0f}", fontsize=8)
     for ax in axes[i]:
         ax.set_xticks([]); ax.set_yticks([])
-for ax, title in zip(axes[0], ["input (mask in red)", "VAE reconstruction", "error map (smoothed)", "KL map (8x8 cells)"]):
+for ax, title in zip(axes[0], ["input (mask in red)", f"{MODEL} reconstruction", "error map (smoothed)", "KL map (8x8 cells)"]):
     ax.set_title(title, fontsize=9)
 fig.colorbar(e, ax=axes[-1, 2], location="bottom", shrink=0.9, label="squared error")
 fig.colorbar(k, ax=axes[-1, 3], location="bottom", shrink=0.9, label="KL per cell")
-fig.suptitle(f"{args.category}, VAE (latent {config['latent_dim']}, seed {config['seed']}): "
+fig.suptitle(f"{args.category}, {MODEL} (latent {config['latent_dim']}, seed {config['seed']}): "
              f"2 normal and the first 4 {DEFECT} test images", fontsize=10)
 fig.savefig(out / f"{name}_maps.png", dpi=130, bbox_inches="tight")
 plt.close(fig)
@@ -93,7 +95,7 @@ ax.axvline(r_thr, color="0.4", ls="--", lw=0.8)
 ax.axhline(k_thr, color="0.4", ls="--", lw=0.8)
 ax.set_xlabel("recon score (max of smoothed error map)")
 ax.set_ylabel("KL score (max over latent cells)")
-ax.set_title(f"{args.category}, VAE (latent {config['latent_dim']}, seed {config['seed']}); "
+ax.set_title(f"{args.category}, {MODEL} (latent {config['latent_dim']}, seed {config['seed']}); "
              "dashed = 95th pct of normals", fontsize=9)
 ax.legend(fontsize=8, frameon=False)
 fig.tight_layout()
