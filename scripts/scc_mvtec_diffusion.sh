@@ -12,7 +12,7 @@
 #
 #$ -N mvtec_diffusion
 #$ -P cs599bg
-#$ -l h_rt=6:00:00
+#$ -l h_rt=2:00:00
 #$ -l gpus=1
 #$ -l gpu_c=8.0
 #$ -pe omp 4

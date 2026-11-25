@@ -90,7 +90,8 @@ def run(category, seeds, size, device, training, train_only=False):
 
 def maps(category, defect, seed, size, device):
     """Picture check: 1 normal and the first 3 `defect` test images; the input, then the
-    reconstruction and smoothed error map at each noise level."""
+    reconstruction and smoothed error map at each noise level. Each noise level has its own
+    error colour scale (shown in its title), shared by the rows."""
     model, config = load_run(run_name(category, size, seed))
     splits = mvtec.load_splits(category, size)
     rows = [int(np.flatnonzero(splits["defect"] == "good")[0])] + list(np.flatnonzero(splits["defect"] == defect)[:3])
@@ -99,7 +100,6 @@ def maps(category, defect, seed, size, device):
         X_hat = reconstruct_set(model, splits["X_test"], t, device)
         recons[t] = X_hat[rows]
         errs[t] = reconstruction_scores(splits["X_test"][rows], X_hat[rows], size)[1]["max"]
-    vmax = max(e.max() for e in errs.values())
 
     ncols = 1 + 2 * len(NOISE_LEVELS)
     fig, axes = plt.subplots(len(rows), ncols, figsize=(1.6 * ncols, 1.7 * len(rows) + 0.6), layout="constrained")
@@ -110,14 +110,13 @@ def maps(category, defect, seed, size, device):
         axes[i, 0].set_ylabel(splits["defect"][idx], fontsize=8)
         for j, t in enumerate(NOISE_LEVELS):
             axes[i, 1 + 2 * j].imshow(recons[t][i].reshape(size, size, 3))
-            e = axes[i, 2 + 2 * j].imshow(errs[t][i], cmap="magma", vmin=0, vmax=vmax)
+            axes[i, 2 + 2 * j].imshow(errs[t][i], cmap="magma", vmin=0, vmax=errs[t].max())
             if i == 0:
                 axes[0, 1 + 2 * j].set_title(f"denoised, t={t}", fontsize=7)
-                axes[0, 2 + 2 * j].set_title(f"error, t={t}", fontsize=7)
+                axes[0, 2 + 2 * j].set_title(f"error, t={t}\n(0 to {errs[t].max():.3f})", fontsize=7)
     axes[0, 0].set_title("input (mask in red)", fontsize=7)
     for ax in axes.flat:
         ax.set_xticks([]); ax.set_yticks([])
-    fig.colorbar(e, ax=axes[-1, -1], location="bottom", shrink=0.9, label="squared error")
     fig.suptitle(f"{category}, diffusion (seed {seed}, best step {config['best_step']}): "
                  f"noised to step t of 1000, then denoised", fontsize=9)
     out = OUT_DIR / f"defect_{category}_{defect}_denoise.png"
