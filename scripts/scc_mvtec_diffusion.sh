@@ -1,10 +1,12 @@
 #!/bin/bash -l
 # BU SCC: one diffusion model on MVTec (one category, one seed), trained on normal images
-# and scored at noise levels 50/100/250/500. Not an array job: category and seed are the
-# script's arguments (default: tile 0).
+# and scored at noise levels 50/100/250/500. Not an array job: pick the run with the
+# two arguments after the script name (category, seed). (qsub -v did not reach the script.)
 #
-#     qsub scripts/scc_mvtec_diffusion.sh              # tile, seed 0
-#     qsub scripts/scc_mvtec_diffusion.sh cable 1      # cable, seed 1
+#     qsub scripts/scc_mvtec_diffusion.sh                                  # tile, seed 0 (stage 1)
+#     qsub scripts/scc_mvtec_diffusion.sh cable 1                          # cable, seed 1
+#     for c in tile cable; do for s in 0 1 2; do                           # stage 2: 6 runs
+#         qsub scripts/scc_mvtec_diffusion.sh $c $s; done; done
 #
 # Writes results/runs/mvtec_<category>_128_diffusion_seed<seed>/ and
 # results/mvtec/diffusion/<category>_128_seed<seed>.csv. A saved model is loaded and
