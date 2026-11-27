@@ -41,6 +41,11 @@ image size in pixels.
 | `mvtec/vae/<category>_<size>.csv` | Per model (β, latent size, seed) and score: the same metrics as the PCA CSVs | `python -m src.mvtec.vae_experiments run` |
 | `mvtec/vae/defect_<category>_<defect>_maps.png` | One VAE, one defect type: 2 normal and 4 defective test images as input, reconstruction, error map, KL map | `python -m src.mvtec.defect_maps [--category --defect --run]` |
 | `mvtec/vae/defect_<category>_<defect>_scatter.png` | Recon vs. KL score per test image (normal vs. that defect), with 95th-percentile-of-normal thresholds | same |
+| `mvtec/vae_pooled/<category>_128.csv` | One AE / VAE trained on the normals of all 15 categories, scored per category: the same metrics as `mvtec/vae/` | `python -m src.mvtec.vae_experiments run-pooled` |
+| `mvtec/vae_pooled/defect_<category>_<defect>_{maps,scatter}.png` | The maps picture and scatter above, for a pooled VAE | `python -m src.mvtec.defect_maps --run mvtec_all_128_b1_z1024_seed0` |
+| `mvtec/diffusion/<category>_128_seed<seed>.csv` | Diffusion model (one per category and seed): the same metrics at test-time noise levels t = 50, 100, 250, 500 | `python -m src.mvtec.diffusion_experiments run` |
+| `mvtec/diffusion/defect_<category>_<defect>_denoise.png` | 1 normal and 3 defective test images: input, then denoised image and error map at each noise level | `python -m src.mvtec.diffusion_experiments maps --category tile --defect gray_stroke` |
+| `mvtec/data/localization_<category>.csv` | Per map (AE / VAE error, VAE KL, diffusion per t), seed and defect type: median inside/outside-mask ratio, peak-cell hit rate and its chance level | `python -m src.mvtec.localization --category tile` |
 
 MVTec scores (see `src/mvtec/scoring.py`): `mean` = mean squared error over
 the image; `max` = max of the smoothed error map; `kl` / `kl_max` = total / max

@@ -7,7 +7,7 @@ But as capacity grows, a model can learn to reconstruct *everything*, anomalies
 included, and detection collapses — sometimes below chance. This project is a
 controlled study of that failure, first on ECG heartbeats and then on real
 image defects (MVTec AD), comparing a linear baseline (PCA), an autoencoder, a
-VAE and (planned) a diffusion model. It asks whether what makes a model
+VAE and a diffusion model. It asks whether what makes a model
 *generative* (a KL prior, a noise schedule, a likelihood score) protects
 detection, and which kinds of anomalies each score catches.
 
@@ -228,6 +228,7 @@ the data.
 │   │   ├── paths.py        # data and results locations
 │   │   ├── evaluate.py     # reconstruction error, AUROC, paradox-curve plot
 │   │   ├── vae.py          # MLP, 1D conv and 2D conv VAEs with learned σ_x
+│   │   ├── diffusion.py    # small DDPM U-Net; DDIM noise-and-denoise reconstruction
 │   │   ├── train.py        # train one VAE; save and load runs
 │   │   └── plots.py        # shared figure styling
 │   ├── ecg/
@@ -247,19 +248,24 @@ the data.
 │       ├── defect_complexity.py          # textures: defect detail vs. surrounding ring
 │       ├── defect_complexity_aligned.py  # objects: defect detail vs. same spot in normal images
 │       ├── textures_scatter.py           # all texture types: detail vs. KL gain, settings check
-│       └── defect_table.py               # all 73 types: detail removed?, KL gain (all latents, latent 1024)
+│       ├── defect_table.py               # all 73 types: detail removed?, KL gain (all latents, latent 1024)
+│       ├── diffusion_experiments.py      # diffusion: train and score at noise levels 50-500, picture check
+│       └── localization.py               # per defect type: is the map high inside the defect mask?
 ├── scripts/
 │   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
 │   ├── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
-│   └── scc_mvtec.sh        # SCC GPU array job: MVTec AE + VAE, one task per category
+│   ├── scc_mvtec.sh        # SCC GPU array job: MVTec AE + VAE, one task per category
+│   ├── scc_mvtec_pooled.sh        # SCC GPU array job: pooled AE + VAE (all categories), train only
+│   ├── scc_mvtec_pooled_score.sh  # SCC GPU job: score the pooled models per category
+│   └── scc_mvtec_diffusion.sh     # SCC GPU job: one diffusion model (category, seed as arguments)
 ├── results/                # see results/README.md for what each figure shows
 │   ├── ecg/{data,pca,vae}/ # figures, each next to its CSV (CSVs gitignored)
-│   ├── mvtec/{data,pca,vae}/
+│   ├── mvtec/{data,pca,vae,vae_pooled,diffusion}/
 │   └── runs/               # saved models, one folder per run (gitignored)
 └── data/                   # downloaded and cached splits (gitignored)
 ```
 
-Planned: a diffusion model and `blog/draft.md`.
+Planned: `blog/draft.md`.
 
 ## Setup
 
@@ -298,6 +304,10 @@ python -m src.mvtec.defect_complexity --category tile          # MVTec: defect d
 python -m src.mvtec.defect_complexity_aligned --category cable # MVTec: defect detail per type (objects)
 python -m src.mvtec.textures_scatter   # MVTec: all textures, detail vs. KL gain
 python -m src.mvtec.defect_table       # MVTec: 73-type table (CSV)
+python -m src.mvtec.vae_experiments run-pooled --device mps   # MVTec: one AE + VAE on all categories
+python -m src.mvtec.diffusion_experiments run --categories tile --device mps   # MVTec: diffusion, train (or load) and score
+python -m src.mvtec.diffusion_experiments maps --category tile --defect gray_stroke   # MVTec: denoising picture
+python -m src.mvtec.localization --category tile --device mps   # MVTec: is the defect area the part that scores high?
 ```
 
 `beta-sweep` and `matched-error` take `--channels 32` for the conv VAE and
