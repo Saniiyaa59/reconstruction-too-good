@@ -7,3 +7,4 @@ scc_results/
 .DS_Store
 # SCC job logs (<name>.o<jobid>[.<task>])
 *.o[0-9]*
+results/mvtec/scores/

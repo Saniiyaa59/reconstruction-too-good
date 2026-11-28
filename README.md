@@ -250,7 +250,8 @@ the data.
 │       ├── textures_scatter.py           # all texture types: detail vs. KL gain, settings check
 │       ├── defect_table.py               # all 73 types: detail removed?, KL gain (all latents, latent 1024)
 │       ├── diffusion_experiments.py      # diffusion: train and score at noise levels 50-500, picture check
-│       └── localization.py               # per defect type: is the map high inside the defect mask?
+│       ├── localization.py               # per defect type: is the map high inside the defect mask?
+│       └── paper_tables.py               # bootstrap CIs, AP, F1-max; LaTeX tables for the paper
 ├── scripts/
 │   ├── scc_ecg.sh          # SCC GPU job: MLP and first conv runs
 │   ├── scc_conv.sh         # SCC GPU job: conv β sweep, wider conv, conv matched error
@@ -308,6 +309,8 @@ python -m src.mvtec.vae_experiments run-pooled --device mps   # MVTec: one AE + 
 python -m src.mvtec.diffusion_experiments run --categories tile --device mps   # MVTec: diffusion, train (or load) and score
 python -m src.mvtec.diffusion_experiments maps --category tile --defect gray_stroke   # MVTec: denoising picture
 python -m src.mvtec.localization --category tile --device mps   # MVTec: is the defect area the part that scores high?
+python -m src.mvtec.paper_tables --category tile --device mps   # MVTec: AUROC with bootstrap CIs, AP, F1-max
+python -m src.mvtec.paper_tables --combine tile cable           # MVTec: LaTeX tables for the paper
 ```
 
 `beta-sweep` and `matched-error` take `--channels 32` for the conv VAE and

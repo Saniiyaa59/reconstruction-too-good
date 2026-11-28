@@ -46,6 +46,8 @@ image size in pixels.
 | `mvtec/diffusion/<category>_128_seed<seed>.csv` | Diffusion model (one per category and seed): the same metrics at test-time noise levels t = 50, 100, 250, 500 | `python -m src.mvtec.diffusion_experiments run` |
 | `mvtec/diffusion/defect_<category>_<defect>_denoise.png` | 1 normal and 3 defective test images: input, then denoised image and error map at each noise level | `python -m src.mvtec.diffusion_experiments maps --category tile --defect gray_stroke` |
 | `mvtec/data/localization_<category>.csv` | Per map (AE / VAE error, VAE KL, diffusion per t), seed and defect type: median inside/outside-mask ratio, peak-cell hit rate and its chance level | `python -m src.mvtec.localization --category tile` |
+| `mvtec/data/paper_table_<category>.csv` | Per method (AE / VAE scores, VAE kl_max, diffusion per t) and defect type: image AUROC with bootstrap 95% CI, AP, F1-max, and AUROC minus the AE's with a paired CI | `python -m src.mvtec.paper_tables --category tile` |
+| `mvtec/paper_tables.tex` | The paper's LaTeX tables, built from those CSVs: AUROC [95% CI] per defect type (AE, VAE KL, diffusion t = 50 and 500, KL − AE), and AP / F1-max | `python -m src.mvtec.paper_tables --combine tile cable` |
 
 MVTec scores (see `src/mvtec/scoring.py`): `mean` = mean squared error over
 the image; `max` = max of the smoothed error map; `kl` / `kl_max` = total / max

@@ -1,0 +1,74 @@
+% Made by: python -m src.mvtec.paper_tables --combine tile cable
+% Needs \usepackage{booktabs,makecell}
+\begin{table}[t]\centering\small
+\caption{Detail-removing defects. (a) Image AUROC with bootstrap 95\% CI (1000 resamples, 3 seeds averaged), MVTec AD at $128\times128$, latent 1024 for AE and VAE. AE and diffusion show the better of their mean and max scores on each row, which favours them. KL $-$ AE: paired bootstrap CI; bold = CI above 0. $^\dagger$ = defect removes fine detail. Bold AUROC = best in row. (b) Share of defect images whose highest-scoring $8\times8$ cell of the anomaly map contains defect pixels (mean of 3 seeds); chance = share of defect cells. Bold = best in row.}
+\label{tab:main}
+\begin{tabular}{llccccc}\toprule
+Category & Defect type ($n$) & \makecell{AE} & \makecell{VAE KL} & \makecell{Diffusion\\recon. $t{=}50$} & \makecell{Diffusion\\bound} & KL $-$ AE \\\midrule
+\multicolumn{7}{l}{\textit{(a) Image AUROC [95\% CI]}} \\
+tile & all defects (84) & 0.64 {\scriptsize[0.54, 0.73]} & 0.78 {\scriptsize[0.71, 0.85]} & 0.83 {\scriptsize[0.75, 0.89]} & \textbf{0.92} {\scriptsize[0.88, 0.96]} & \textbf{+0.15 {\scriptsize[+0.04, +0.25]}} \\
+tile & gray stroke$^\dagger$ (16) & 0.61 {\scriptsize[0.45, 0.76]} & \textbf{1.00} {\scriptsize[0.99, 1.00]} & 0.61 {\scriptsize[0.45, 0.76]} & 0.69 {\scriptsize[0.53, 0.82]} & \textbf{+0.39 {\scriptsize[+0.24, +0.54]}} \\
+tile & glue strip$^\dagger$ (18) & 0.54 {\scriptsize[0.42, 0.67]} & 0.83 {\scriptsize[0.72, 0.93]} & 0.69 {\scriptsize[0.52, 0.84]} & \textbf{0.93} {\scriptsize[0.86, 0.98]} & \textbf{+0.29 {\scriptsize[+0.14, +0.42]}} \\
+\midrule
+cable & all defects (92) & 0.68 {\scriptsize[0.59, 0.77]} & 0.63 {\scriptsize[0.56, 0.70]} & \textbf{0.82} {\scriptsize[0.76, 0.88]} & 0.69 {\scriptsize[0.60, 0.77]} & -0.05 {\scriptsize[-0.15, +0.05]} \\
+cable & missing cable$^\dagger$ (12) & 0.68 {\scriptsize[0.52, 0.83]} & \textbf{0.97} {\scriptsize[0.94, 0.99]} & 0.49 {\scriptsize[0.31, 0.67]} & 0.46 {\scriptsize[0.28, 0.64]} & \textbf{+0.29 {\scriptsize[+0.13, +0.46]}} \\
+cable & missing wire$^\dagger$ (10) & 0.40 {\scriptsize[0.19, 0.62]} & \textbf{0.76} {\scriptsize[0.66, 0.87]} & 0.57 {\scriptsize[0.38, 0.74]} & 0.56 {\scriptsize[0.39, 0.71]} & \textbf{+0.36 {\scriptsize[+0.15, +0.58]}} \\
+\midrule
+\multicolumn{6}{l}{\textit{(b) Peak-cell hit rate}} & \textit{chance} \\
+tile & gray stroke$^\dagger$ (16) & 0.33 & \textbf{1.00} & 0.17 & 0.92 & 0.12 \\
+tile & glue strip$^\dagger$ (18) & 0.07 & 0.56 & 0.63 & \textbf{0.96} & 0.22 \\
+cable & missing cable$^\dagger$ (12) & 0.36 & \textbf{0.94} & 0.08 & 0.17 & 0.22 \\
+cable & missing wire$^\dagger$ (10) & 0.07 & \textbf{0.57} & 0.10 & 0.10 & 0.09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]\centering\small
+\caption{All defect types. Image AUROC with bootstrap 95\% CI (1000 resamples, 3 seeds averaged), MVTec AD at $128\times128$, latent 1024 for AE and VAE. AE and diffusion show the better of their mean and max scores on each row, which favours them. KL $-$ AE: paired bootstrap CI; bold = CI above 0. $^\dagger$ = defect removes fine detail. Bold AUROC = best in row.}
+\label{tab:all-types}
+\begin{tabular}{llccccc}\toprule
+Category & Defect type ($n$) & \makecell{AE} & \makecell{VAE KL} & \makecell{Diffusion\\recon. $t{=}50$} & \makecell{Diffusion\\bound} & KL $-$ AE \\\midrule
+tile & all defects (84) & 0.64 {\scriptsize[0.54, 0.73]} & 0.78 {\scriptsize[0.71, 0.85]} & 0.83 {\scriptsize[0.75, 0.89]} & \textbf{0.92} {\scriptsize[0.88, 0.96]} & \textbf{+0.15 {\scriptsize[+0.04, +0.25]}} \\
+tile & crack (17) & 0.89 {\scriptsize[0.78, 0.98]} & 0.74 {\scriptsize[0.59, 0.86]} & \textbf{1.00} {\scriptsize[0.99, 1.00]} & \textbf{1.00} {\scriptsize[0.99, 1.00]} & -0.15 {\scriptsize[-0.28, -0.05]} \\
+tile & glue strip$^\dagger$ (18) & 0.54 {\scriptsize[0.42, 0.67]} & 0.83 {\scriptsize[0.72, 0.93]} & 0.69 {\scriptsize[0.52, 0.84]} & \textbf{0.93} {\scriptsize[0.86, 0.98]} & \textbf{+0.29 {\scriptsize[+0.14, +0.42]}} \\
+tile & gray stroke$^\dagger$ (16) & 0.61 {\scriptsize[0.45, 0.76]} & \textbf{1.00} {\scriptsize[0.99, 1.00]} & 0.61 {\scriptsize[0.45, 0.76]} & 0.69 {\scriptsize[0.53, 0.82]} & \textbf{+0.39 {\scriptsize[+0.24, +0.54]}} \\
+tile & oil$^\dagger$ (18) & 0.58 {\scriptsize[0.44, 0.72]} & 0.66 {\scriptsize[0.51, 0.80]} & \textbf{1.00} {\scriptsize[1.00, 1.00]} & \textbf{1.00} {\scriptsize[1.00, 1.00]} & +0.08 {\scriptsize[-0.12, +0.26]} \\
+tile & rough$^\dagger$ (15) & 0.55 {\scriptsize[0.40, 0.70]} & 0.69 {\scriptsize[0.52, 0.86]} & 0.90 {\scriptsize[0.80, 0.97]} & \textbf{0.99} {\scriptsize[0.97, 1.00]} & +0.14 {\scriptsize[-0.07, +0.36]} \\
+\midrule
+cable & all defects (92) & 0.68 {\scriptsize[0.59, 0.77]} & 0.63 {\scriptsize[0.56, 0.70]} & \textbf{0.82} {\scriptsize[0.76, 0.88]} & 0.69 {\scriptsize[0.60, 0.77]} & -0.05 {\scriptsize[-0.15, +0.05]} \\
+cable & bent wire (13) & 0.70 {\scriptsize[0.52, 0.85]} & 0.50 {\scriptsize[0.39, 0.62]} & \textbf{1.00} {\scriptsize[0.99, 1.00]} & 0.86 {\scriptsize[0.77, 0.93]} & -0.20 {\scriptsize[-0.39, -0.01]} \\
+cable & cable swap (12) & 0.80 {\scriptsize[0.66, 0.91]} & 0.50 {\scriptsize[0.35, 0.65]} & \textbf{0.98} {\scriptsize[0.94, 1.00]} & 0.81 {\scriptsize[0.69, 0.92]} & -0.30 {\scriptsize[-0.47, -0.13]} \\
+cable & combined (11) & 0.60 {\scriptsize[0.40, 0.77]} & 0.64 {\scriptsize[0.49, 0.78]} & \textbf{0.78} {\scriptsize[0.59, 0.94]} & 0.56 {\scriptsize[0.37, 0.75]} & +0.05 {\scriptsize[-0.19, +0.30]} \\
+cable & cut inner insulation (14) & 0.86 {\scriptsize[0.75, 0.94]} & 0.59 {\scriptsize[0.46, 0.71]} & \textbf{0.97} {\scriptsize[0.93, 1.00]} & 0.84 {\scriptsize[0.74, 0.92]} & -0.27 {\scriptsize[-0.42, -0.13]} \\
+cable & cut outer insulation (10) & 0.97 {\scriptsize[0.94, 1.00]} & 0.72 {\scriptsize[0.61, 0.81]} & \textbf{0.99} {\scriptsize[0.96, 1.00]} & 0.89 {\scriptsize[0.81, 0.95]} & -0.26 {\scriptsize[-0.38, -0.16]} \\
+cable & missing cable$^\dagger$ (12) & 0.68 {\scriptsize[0.52, 0.83]} & \textbf{0.97} {\scriptsize[0.94, 0.99]} & 0.49 {\scriptsize[0.31, 0.67]} & 0.46 {\scriptsize[0.28, 0.64]} & \textbf{+0.29 {\scriptsize[+0.13, +0.46]}} \\
+cable & missing wire$^\dagger$ (10) & 0.40 {\scriptsize[0.19, 0.62]} & \textbf{0.76} {\scriptsize[0.66, 0.87]} & 0.57 {\scriptsize[0.38, 0.74]} & 0.56 {\scriptsize[0.39, 0.71]} & \textbf{+0.36 {\scriptsize[+0.15, +0.58]}} \\
+cable & poke insulation (10) & 0.50 {\scriptsize[0.31, 0.68]} & 0.37 {\scriptsize[0.25, 0.49]} & \textbf{0.77} {\scriptsize[0.65, 0.88]} & 0.50 {\scriptsize[0.34, 0.66]} & -0.13 {\scriptsize[-0.33, +0.09]} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]\centering\small
+\caption{AP / F1-max for the same methods and rows. F1-max picks its threshold on the test set, so it is optimistic; it is reported for comparison with prior MVTec work.}
+\label{tab:ap-f1}
+\begin{tabular}{llcccc}\toprule
+Category & Defect type ($n$) & \makecell{AE} & \makecell{VAE KL} & \makecell{Diffusion\\recon. $t{=}50$} & \makecell{Diffusion\\bound} \\\midrule
+tile & all defects (84) & 0.83 / 0.84 & 0.92 / 0.84 & 0.93 / 0.87 & 0.97 / 0.91 \\
+tile & crack (17) & 0.88 / 0.82 & 0.71 / 0.64 & 1.00 / 0.98 & 1.00 / 0.98 \\
+tile & glue strip$^\dagger$ (18) & 0.39 / 0.55 & 0.81 / 0.73 & 0.56 / 0.62 & 0.89 / 0.83 \\
+tile & gray stroke$^\dagger$ (16) & 0.50 / 0.57 & 1.00 / 0.98 & 0.43 / 0.56 & 0.54 / 0.60 \\
+tile & oil$^\dagger$ (18) & 0.45 / 0.57 & 0.63 / 0.61 & 1.00 / 1.00 & 1.00 / 1.00 \\
+tile & rough$^\dagger$ (15) & 0.44 / 0.51 & 0.69 / 0.65 & 0.83 / 0.76 & 0.98 / 0.96 \\
+\midrule
+cable & all defects (92) & 0.79 / 0.76 & 0.77 / 0.76 & 0.90 / 0.81 & 0.77 / 0.77 \\
+cable & bent wire (13) & 0.43 / 0.46 & 0.24 / 0.34 & 0.99 / 0.96 & 0.55 / 0.63 \\
+cable & cable swap (12) & 0.49 / 0.57 & 0.26 / 0.33 & 0.92 / 0.87 & 0.50 / 0.51 \\
+cable & combined (11) & 0.23 / 0.38 & 0.44 / 0.45 & 0.63 / 0.61 & 0.24 / 0.39 \\
+cable & cut inner insulation (14) & 0.60 / 0.63 & 0.33 / 0.44 & 0.93 / 0.88 & 0.50 / 0.58 \\
+cable & cut outer insulation (10) & 0.87 / 0.83 & 0.40 / 0.46 & 0.94 / 0.88 & 0.46 / 0.66 \\
+cable & missing cable$^\dagger$ (12) & 0.37 / 0.42 & 0.93 / 0.92 & 0.19 / 0.31 & 0.17 / 0.31 \\
+cable & missing wire$^\dagger$ (10) & 0.19 / 0.27 & 0.41 / 0.51 & 0.20 / 0.30 & 0.20 / 0.32 \\
+cable & poke insulation (10) & 0.19 / 0.31 & 0.13 / 0.26 & 0.30 / 0.47 & 0.17 / 0.31 \\
+\bottomrule
+\end{tabular}
+\end{table}

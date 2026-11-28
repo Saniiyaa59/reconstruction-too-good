@@ -139,6 +139,48 @@ class Diffusion(nn.Module):
             x_t = a_prev.sqrt() * x0 + (1 - a_prev).sqrt() * eps
         return self.from_image(x_t)
 
+    @torch.no_grad()
+    def noise_error(self, x_flat, t, noise):
+        """Per-pixel squared error of the predicted noise at step t, mean over RGB: (N, H, W).
+
+        Up to a weight that depends only on t, its sum over pixels is the step-t KL term
+        of the model's likelihood bound: how far the model's step back from x_t is from
+        the true one. No denoising, so this is a likelihood-type score, not a reconstruction.
+        """
+        x = self.to_image(x_flat)
+        steps = torch.full((len(x),), t, device=x.device)
+        return (self.unet(self.add_noise(x, steps, noise), steps) - noise).pow(2).mean(dim=1)
+
+    def bound_weight(self, t):
+        """Weight of the step-t term in the bound, with the reverse-step variance set to beta_t
+        (Ho et al. 2020): beta_t / (2 alpha_t (1 - alpha_bar_t))."""
+        a_bar, a_bar_prev = self.alpha_bar[t], self.alpha_bar[t - 1]
+        beta = 1 - a_bar / a_bar_prev
+        return float(beta / (2 * (1 - beta) * (1 - a_bar)))
+
+
+BOUND_STEPS = np.linspace(1, T, 20).round().astype(int)  # the grid the approximate bound sums over
+
+
+def noise_error_set(model, X, steps, device="cpu", n_draws=4, seed=0, batch_size=32):
+    """{t: (n, H, W) noise-error map} for a whole (n, H*W*3) numpy array, each averaged over
+    n_draws fixed noise draws (draw d uses seed + d, so draw 0 is the noise reconstruct_set uses).
+    "bound" = sum over BOUND_STEPS of weight(t) * map(t) * (T / len(BOUND_STEPS)): an
+    approximation of the bound's per-pixel terms (its t = 0 decoder term left out)."""
+    s = model.image_size
+    model = model.to(device).eval()
+    grid = list(steps) + [t for t in BOUND_STEPS if t not in steps]
+    out = {t: np.zeros((len(X), s, s), dtype=np.float32) for t in grid}
+    for d in range(n_draws):
+        noise = torch.randn(len(X), 3, s, s, generator=torch.Generator().manual_seed(seed + d))
+        for i in range(0, len(X), batch_size):
+            x = torch.tensor(X[i:i + batch_size], device=device)
+            for t in grid:
+                out[t][i:i + batch_size] += model.noise_error(
+                    x, t, noise[i:i + batch_size].to(device)).cpu().numpy() / n_draws
+    bound = sum(model.bound_weight(int(t)) * out[t] for t in BOUND_STEPS) * (T / len(BOUND_STEPS))
+    return {**{t: out[t] for t in steps}, "bound": bound}
+
 
 def reconstruct_set(model, X, t_start, device="cpu", seed=0, batch_size=32):
     """Reconstruct a whole (n, H*W*3) numpy array. The noise for image i depends only on

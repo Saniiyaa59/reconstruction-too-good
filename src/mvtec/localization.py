@@ -13,7 +13,8 @@ why. This checks, on each defective test image, whether its anomaly map is high
                that contain defect pixels, averaged over the images
 
 Maps compared: the smoothed error map of the AE, the VAE and the diffusion model
-(each noise level), and the VAE's KL map. Reported per defect type: median ratio
+(each noise level), the VAE's KL map, and the diffusion model's smoothed
+noise-prediction error map (each noise level, and the approximate bound). Reported per defect type: median ratio
 over the images, and hit rate.
 
     python -m src.mvtec.localization --category tile --device mps
@@ -23,12 +24,12 @@ import argparse
 import numpy as np
 
 from src.common import paths
-from src.common.diffusion import reconstruct_set
+from src.common.diffusion import noise_error_set, reconstruct_set
 from src.common.evaluate import write_csv
 from src.common.train import load_run
 from src.mvtec import data
 from src.mvtec.diffusion_experiments import NOISE_LEVELS, load_run as load_diffusion, run_name
-from src.mvtec.scoring import model_scores, reconstruction_scores, to_cells
+from src.mvtec.scoring import map_scores, model_scores, reconstruction_scores, to_cells
 
 
 def localization(maps, masks):
@@ -64,6 +65,8 @@ def model_maps(category, size, seeds, device):
         for t in NOISE_LEVELS:  # whole test set, so the noise matches the CSV scores
             X_hat = reconstruct_set(model, splits["X_test"], t, device)
             out[(f"diffusion t={t}", seed)] = reconstruction_scores(splits["X_test"], X_hat, size)[1]["max"]
+        for t, raw in noise_error_set(model, splits["X_test"], NOISE_LEVELS, device).items():
+            out[(f"noise error {t if t == 'bound' else f't={t}'}", seed)] = map_scores(raw, size)[1]["max"]
     return splits, out
 
 

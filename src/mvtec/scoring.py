@@ -39,11 +39,16 @@ def error_maps(X, X_hat, size):
     return ((X - X_hat) ** 2).reshape(len(X), size, size, 3).mean(axis=3)
 
 
-def reconstruction_scores(X, X_hat, size):
-    """(scores, maps): the mean and max scores, and the smoothed error maps behind max."""
-    raw = error_maps(X, X_hat, size)
+def map_scores(raw, size):
+    """(scores, maps) from raw per-pixel maps (n, size, size): mean of the raw map, max of
+    the smoothed map, and the smoothed maps behind max."""
     smoothed = np.stack([gaussian_filter(m, sigma=size / 32) for m in raw])
     return {"mean": raw.mean(axis=(1, 2)), "max": smoothed.max(axis=(1, 2))}, {"max": smoothed}
+
+
+def reconstruction_scores(X, X_hat, size):
+    """(scores, maps): the mean and max scores, and the smoothed error maps behind max."""
+    return map_scores(error_maps(X, X_hat, size), size)
 
 
 def model_scores(model, X, size, batch_size=64):
